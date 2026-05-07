@@ -19,19 +19,19 @@ export function Header() {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             <Link 
-              href="#shop" 
+              href="/#shop" 
               className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors border-b border-foreground pb-0.5"
             >
               Shop
             </Link>
             <Link 
-              href="#about" 
+              href="/about" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               About
             </Link>
             <Link 
-              href="#" 
+              href="/instagram" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Instagram
@@ -61,21 +61,21 @@ export function Header() {
           <nav className="md:hidden py-4 border-t border-border/50">
             <div className="flex flex-col gap-4">
               <Link 
-                href="#shop" 
+                href="/#shop" 
                 className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Shop
               </Link>
               <Link 
-                href="#about" 
+                href="/about" 
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About
               </Link>
               <Link 
-                href="#" 
+                href="/instagram" 
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
