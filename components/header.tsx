@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation"
 import { ShoppingCart, Menu, X } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { useCart } from "@/lib/cart-context"
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
+  const { totalItems } = useCart()
 
   const isActive = (href: string) => {
     if (href === "/#shop") {
@@ -65,12 +67,18 @@ export function Header() {
 
           {/* Cart & Mobile Menu */}
           <div className="flex items-center gap-4">
-            <button 
-              className="p-2 hover:bg-secondary rounded-sm transition-colors"
+            <Link 
+              href="/cart"
+              className="relative p-2 hover:bg-secondary rounded-sm transition-colors"
               aria-label="Shopping cart"
             >
               <ShoppingCart className="w-5 h-5" />
-            </button>
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-background text-xs font-bold rounded-full flex items-center justify-center">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
             <button 
               className="md:hidden p-2 hover:bg-secondary rounded-sm transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -120,6 +128,18 @@ export function Header() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Instagram
+              </Link>
+              <Link 
+                href="/cart" 
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive("/cart") 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Cart ({totalItems})
               </Link>
             </div>
           </nav>
