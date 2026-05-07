@@ -1,11 +1,21 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ShoppingCart, Menu, X } from "lucide-react"
 import { useState } from "react"
+import { cn } from "@/lib/utils"
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const pathname = usePathname()
+
+  const isActive = (href: string) => {
+    if (href === "/#shop") {
+      return pathname === "/"
+    }
+    return pathname === href
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
@@ -20,19 +30,34 @@ export function Header() {
           <nav className="hidden md:flex items-center gap-8">
             <Link 
               href="/#shop" 
-              className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors border-b border-foreground pb-0.5"
+              className={cn(
+                "text-sm font-medium transition-colors",
+                isActive("/#shop") 
+                  ? "text-foreground border-b border-foreground pb-0.5" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
             >
               Shop
             </Link>
             <Link 
               href="/about" 
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className={cn(
+                "text-sm font-medium transition-colors",
+                isActive("/about") 
+                  ? "text-foreground border-b border-foreground pb-0.5" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
             >
               About
             </Link>
             <Link 
               href="/instagram" 
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className={cn(
+                "text-sm font-medium transition-colors",
+                isActive("/instagram") 
+                  ? "text-foreground border-b border-foreground pb-0.5" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
             >
               Instagram
             </Link>
@@ -62,21 +87,36 @@ export function Header() {
             <div className="flex flex-col gap-4">
               <Link 
                 href="/#shop" 
-                className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive("/#shop") 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Shop
               </Link>
               <Link 
                 href="/about" 
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive("/about") 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About
               </Link>
               <Link 
                 href="/instagram" 
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive("/instagram") 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Instagram
