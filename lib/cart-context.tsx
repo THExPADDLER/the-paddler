@@ -47,7 +47,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     },
   ])
 
-  const addItem = (newItem: Omit<CartItem, "quantity">) => {
+  const addItem = (newItem: Omit<CartItem, "quantity"> & { quantity?: number }) => {
+    const quantityToAdd = newItem.quantity || 1
     setItems((prev) => {
       const existingItem = prev.find(
         (item) => item.id === newItem.id && item.size === newItem.size
@@ -55,11 +56,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existingItem) {
         return prev.map((item) =>
           item.id === newItem.id && item.size === newItem.size
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + quantityToAdd }
             : item
         )
       }
-      return [...prev, { ...newItem, quantity: 1 }]
+      return [...prev, { ...newItem, quantity: quantityToAdd }]
     })
   }
 

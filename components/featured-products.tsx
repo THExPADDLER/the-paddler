@@ -1,35 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-
-const products = [
-  {
-    id: 1,
-    name: "NULL SPACE TEE",
-    description: "HEAVYWEIGHT COTTON",
-    price: 85,
-    image: "/images/tshirt-black.jpg",
-    badge: "NEW ARRIVAL",
-    badgeColor: "bg-foreground text-background",
-  },
-  {
-    id: 2,
-    name: "VOID SHELL V1",
-    description: "TECHNICAL OUTERWEAR",
-    price: 320,
-    image: "/images/jacket-olive.jpg",
-    badge: null,
-    badgeColor: null,
-  },
-  {
-    id: 3,
-    name: "GRIT CARGO",
-    description: "CANVAS DUCK",
-    price: 145,
-    image: "/images/cargo-black.jpg",
-    badge: "SOLD OUT",
-    badgeColor: "bg-red-600 text-white",
-  },
-]
+import { products } from "@/lib/products"
 
 export function FeaturedProducts() {
   return (
@@ -53,7 +24,7 @@ export function FeaturedProducts() {
           {products.map((product) => (
             <Link
               key={product.id}
-              href="#"
+              href={`/product/${product.slug}`}
               className="group block"
             >
               <div className="relative aspect-square bg-neutral-100 overflow-hidden">
