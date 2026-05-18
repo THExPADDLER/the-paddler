@@ -1,0 +1,19 @@
+[debug] [2026-05-16T20:32:39.973Z] ----------------------------------------------------------------------
+[debug] [2026-05-16T20:32:39.976Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\hts\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-05-16T20:32:39.976Z] CLI Version:   15.18.0
+[debug] [2026-05-16T20:32:39.976Z] Platform:      win32
+[debug] [2026-05-16T20:32:39.976Z] Node Version:  v24.15.0
+[debug] [2026-05-16T20:32:39.976Z] Time:          Sun May 17 2026 02:02:39 GMT+0530 (India Standard Time)
+[debug] [2026-05-16T20:32:39.976Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\hts\v0-the-paddler
+

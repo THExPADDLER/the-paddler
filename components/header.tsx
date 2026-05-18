@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  ArrowLeft,
   Heart,
   LogOut,
   Menu,
@@ -64,6 +65,17 @@ export function Header() {
     router.push("/")
   }
 
+  const handleBack = () => {
+    closeAll()
+
+    if (window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    router.push("/")
+  }
+
   const closeAll = () => {
     setMenuOpen(false)
     setProfileOpen(false)
@@ -76,17 +88,30 @@ export function Header() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/85 backdrop-blur-md border-b border-border/50">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between">
-            <button
-              onClick={() => {
-                setMenuOpen(!menuOpen)
-                setProfileOpen(false)
-                setSearchOpen(false)
-              }}
-              className="p-2 hover:bg-secondary rounded-sm transition-colors"
-              aria-label="Open menu"
-            >
-              {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+            <div className="flex items-center gap-2">
+              {pathname !== "/" && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="p-2 hover:bg-secondary rounded-sm transition-colors"
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setMenuOpen(!menuOpen)
+                  setProfileOpen(false)
+                  setSearchOpen(false)
+                }}
+                className="p-2 hover:bg-secondary rounded-sm transition-colors"
+                aria-label="Open menu"
+              >
+                {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
 
             <Link
               href="/"

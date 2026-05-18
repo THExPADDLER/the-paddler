@@ -5,12 +5,14 @@ import { MapPin, Trash2, Plus, Save } from "lucide-react"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 type Address = {
   id: number
   fullName: string
   phone: string
   address: string
+  landmark?: string
   city: string
   state: string
   pincode: string
@@ -29,30 +31,46 @@ const pincodeData: Record<string, { city: string; state: string }> = {
 }
 
 export default function AddressesPage() {
+  const { user, loading } = useAuth()
   const [addresses, setAddresses] = useState<Address[]>([])
 
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [address, setAddress] = useState("")
+  const [landmark, setLandmark] = useState("")
   const [city, setCity] = useState("")
   const [state, setState] = useState("")
   const [pincode, setPincode] = useState("")
   const [type, setType] = useState("Home")
   const [pincodeMessage, setPincodeMessage] = useState("")
+  const addressStorageKey = user ? `the-paddler-addresses-${user.uid}` : null
 
   useEffect(() => {
-    const saved = localStorage.getItem("the-paddler-addresses")
+    if (loading || !addressStorageKey) return
+
+    const saved = localStorage.getItem(addressStorageKey)
+    const legacySaved = localStorage.getItem("the-paddler-addresses")
 
     if (saved) {
       setAddresses(JSON.parse(saved))
+      return
     }
-  }, [])
+
+    if (legacySaved) {
+      const parsed = JSON.parse(legacySaved)
+      setAddresses(parsed)
+      localStorage.setItem(addressStorageKey, legacySaved)
+      localStorage.removeItem("the-paddler-addresses")
+    }
+  }, [addressStorageKey, loading])
 
   const saveAddresses = (updated: Address[]) => {
+    if (!addressStorageKey) return
+
     setAddresses(updated)
 
     localStorage.setItem(
-      "the-paddler-addresses",
+      addressStorageKey,
       JSON.stringify(updated)
     )
   }
@@ -94,6 +112,7 @@ export default function AddressesPage() {
       fullName,
       phone,
       address,
+      landmark,
       city,
       state,
       pincode,
@@ -105,6 +124,7 @@ export default function AddressesPage() {
     setFullName("")
     setPhone("")
     setAddress("")
+    setLandmark("")
     setCity("")
     setState("")
     setPincode("")
@@ -171,6 +191,14 @@ export default function AddressesPage() {
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   required
+                />
+
+                <input
+                  type="text"
+                  placeholder="Landmark e.g. near temple, school, mall"
+                  className="w-full bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white mt-4"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
                 />
 
                 <input
@@ -283,6 +311,12 @@ export default function AddressesPage() {
                         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                           {item.address}, {item.city}, {item.state} - {item.pincode}
                         </p>
+
+                        {item.landmark && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Landmark: {item.landmark}
+                          </p>
+                        )}
 
                       </div>
 

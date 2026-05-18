@@ -1,6 +1,9 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
+import { onAuthStateChanged } from "firebase/auth"
+
+import { auth } from "@/lib/firebase"
 
 export interface CartItem {
   id: number
@@ -27,20 +30,35 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
+  const [storageKey, setStorageKey] = useState("the-paddler-cart-guest")
 
   useEffect(() => {
-    const savedCart = localStorage.getItem("the-paddler-cart")
-    if (savedCart) {
-      setItems(JSON.parse(savedCart))
-    }
-    setIsLoaded(true)
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setStorageKey(
+        firebaseUser
+          ? `the-paddler-cart-${firebaseUser.uid}`
+          : "the-paddler-cart-guest"
+      )
+    })
+
+    return () => unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("the-paddler-cart", JSON.stringify(items))
+    const savedCart = localStorage.getItem(storageKey)
+    if (savedCart) {
+      setItems(JSON.parse(savedCart))
+    } else {
+      setItems([])
     }
-  }, [items, isLoaded])
+    setIsLoaded(true)
+  }, [storageKey])
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(storageKey, JSON.stringify(items))
+    }
+  }, [items, isLoaded, storageKey])
 
   const addItem = (newItem: Omit<CartItem, "quantity"> & { quantity?: number }) => {
     const quantityToAdd = newItem.quantity || 1
@@ -81,7 +99,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => {
     setItems([])
-    localStorage.removeItem("the-paddler-cart")
+    localStorage.removeItem(storageKey)
   }
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)

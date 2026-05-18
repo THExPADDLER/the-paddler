@@ -23,6 +23,7 @@ type InvoiceOrder = {
     fullName: string
     phone: string
     address: string
+    landmark?: string
     city: string
     state: string
     pincode: string
@@ -31,7 +32,6 @@ type InvoiceOrder = {
   pricing: {
     subtotal?: number
     shipping?: number
-    prepaidDiscount?: number
     couponDiscount?: number
     total: number
   }
@@ -122,7 +122,6 @@ export default function InvoicePage() {
     order.pricing.subtotal ||
     order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const shipping = order.pricing.shipping || 0
-  const prepaidDiscount = order.pricing.prepaidDiscount || 0
   const couponDiscount = order.pricing.couponDiscount || 0
 
   return (
@@ -182,6 +181,9 @@ export default function InvoicePage() {
                 <>
                   <p>{order.address.fullName}</p>
                   <p>{order.address.address}</p>
+                  {order.address.landmark && (
+                    <p>Landmark: {order.address.landmark}</p>
+                  )}
                   <p>
                     {order.address.city}, {order.address.state} -{" "}
                     {order.address.pincode}
@@ -234,10 +236,6 @@ export default function InvoicePage() {
             <div className="flex justify-between">
               <span>Shipping</span>
               <span>{shipping === 0 ? "FREE" : `₹${shipping}`}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Prepaid Discount</span>
-              <span>-₹{prepaidDiscount}</span>
             </div>
             <div className="flex justify-between">
               <span>Coupon Discount</span>

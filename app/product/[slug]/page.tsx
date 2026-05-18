@@ -18,6 +18,7 @@ import {
   MapPin,
 } from "lucide-react"
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -54,6 +55,17 @@ const getDisplayMrp = (product: Product) => {
   const mrp = product.mrp || fallbackMrp
 
   return mrp > product.price ? mrp : null
+}
+
+const getApproxDeliveryDate = () => {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date)
 }
 
 export default function ProductPage() {
@@ -218,45 +230,73 @@ export default function ProductPage() {
     }
 
     const city = pincodeData[clean]
+    const deliveryDate = getApproxDeliveryDate()
 
     if (city) {
       setDeliveryMessage(
-        `Delivery available in ${city}. Estimated delivery: 3–7 business days.`
+        `Delivery available in ${city}. Approx delivery by ${deliveryDate}.`
       )
     } else {
       setDeliveryMessage(
-        "We will verify delivery availability for this pincode at checkout."
+        `Delivery available for this pincode. Approx delivery by ${deliveryDate}.`
       )
     }
   }
 
-  const applyCoupon = () => {
-    if (coupon.trim().toUpperCase() === "PADDLER10") {
-      setCouponMessage("Coupon available: 10% OFF at checkout.")
-    } else {
-      setCouponMessage("Coupon will be verified at checkout.")
+  const applyCoupon = async () => {
+    const code = coupon.trim().toUpperCase()
+
+    if (!code) {
+      setCouponMessage("Enter a coupon code to check.")
+      return
+    }
+
+    try {
+      const couponSnap = await getDoc(doc(db, "coupons", code))
+
+      if (couponSnap.exists() && couponSnap.data().active !== false) {
+        const discountPercent = Number(couponSnap.data().discountPercent || 0)
+        setCouponMessage(
+          `Coupon available: ${discountPercent}% OFF at checkout.`
+        )
+        return
+      }
+
+      if (code === "PADDLER10") {
+        setCouponMessage("Coupon available: 10% OFF at checkout.")
+        return
+      }
+
+      setCouponMessage("This coupon is not active right now.")
+    } catch (error) {
+      console.error("COUPON CHECK ERROR:", error)
+      setCouponMessage("Unable to check coupon right now.")
     }
   }
 
-  const handleNotifyMe = () => {
+  const handleNotifyMe = async () => {
     if (!notifyEmail) {
       alert("Please enter your email.")
       return
     }
 
-    const existing = localStorage.getItem("the-paddler-notify-me")
-    const list = existing ? JSON.parse(existing) : []
-
-    list.push({
+    try {
+      await addDoc(collection(db, "notifyRequests"), {
+        productSlug: product.slug,
       productId: product.id,
       productName: product.name,
       email: notifyEmail,
+        source: "product",
+        status: "open",
       createdAt: new Date().toISOString(),
-    })
+      })
 
-    localStorage.setItem("the-paddler-notify-me", JSON.stringify(list))
-    setNotifyEmail("")
-    alert("Done! We will notify you when this product restocks.")
+      setNotifyEmail("")
+      alert("Done! We will notify you when this product restocks.")
+    } catch (error) {
+      console.error("NOTIFY REQUEST ERROR:", error)
+      alert("Unable to save notify request. Please try again.")
+    }
   }
 
   const decreaseQuantity = () => {
@@ -349,15 +389,6 @@ export default function ProductPage() {
               <p className="text-muted-foreground leading-relaxed mb-8">
                 {product.longDescription}
               </p>
-
-              <div className="border border-green-700 bg-green-950/30 p-4 mb-6">
-                <p className="font-black text-green-400">
-                  5% OFF on prepaid orders
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Discount is automatically applied on checkout.
-                </p>
-              </div>
 
               <div className="border border-border bg-secondary/20 p-4 mb-6">
                 <p className="text-sm font-black mb-3 flex items-center gap-2">

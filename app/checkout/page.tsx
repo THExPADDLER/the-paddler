@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Lock, MapPin, Tag, Truck } from "lucide-react"
-import { addDoc, collection } from "firebase/firestore"
+import { addDoc, collection, doc, getDoc } from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -18,6 +18,7 @@ type Address = {
   fullName: string
   phone: string
   address: string
+  landmark?: string
   city: string
   state: string
   pincode: string
@@ -60,7 +61,9 @@ export default function CheckoutPage() {
       return
     }
 
-    const savedAddresses = localStorage.getItem("the-paddler-addresses")
+    const savedAddresses = localStorage.getItem(
+      `the-paddler-addresses-${user.uid}`
+    )
 
     if (savedAddresses) {
       const parsed = JSON.parse(savedAddresses)
@@ -73,16 +76,39 @@ export default function CheckoutPage() {
   }, [loading, router, user])
 
   const shipping = totalPrice >= 1500 ? 0 : 80
-  const prepaidDiscount = Math.round(totalPrice * 0.05)
-  const total = totalPrice + shipping - prepaidDiscount - couponDiscount
+  const total = totalPrice + shipping - couponDiscount
 
-  const applyCoupon = () => {
-    if (coupon.toUpperCase() === "PADDLER10") {
-      setCouponDiscount(Math.round(totalPrice * 0.1))
-      alert("Coupon applied successfully!")
-    } else {
+  const applyCoupon = async () => {
+    const code = coupon.trim().toUpperCase()
+
+    if (!code) {
       setCouponDiscount(0)
-      alert("Invalid coupon code")
+      alert("Please enter a coupon code.")
+      return
+    }
+
+    try {
+      const couponSnap = await getDoc(doc(db, "coupons", code))
+      let discountPercent = 0
+
+      if (couponSnap.exists() && couponSnap.data().active !== false) {
+        discountPercent = Number(couponSnap.data().discountPercent || 0)
+      } else if (code === "PADDLER10") {
+        discountPercent = 10
+      }
+
+      if (discountPercent <= 0) {
+        setCouponDiscount(0)
+        alert("Invalid or inactive coupon code.")
+        return
+      }
+
+      setCouponDiscount(Math.round(totalPrice * (discountPercent / 100)))
+      alert("Coupon applied successfully!")
+    } catch (error) {
+      console.error("COUPON APPLY ERROR:", error)
+      setCouponDiscount(0)
+      alert("Unable to check coupon right now.")
     }
   }
 
@@ -124,8 +150,7 @@ export default function CheckoutPage() {
         pricing: {
           subtotal: totalPrice,
           shipping,
-          prepaidDiscount,
-          couponCode: coupon.trim().toUpperCase() || null,
+          couponCode: couponDiscount > 0 ? coupon.trim().toUpperCase() : null,
           couponDiscount,
           total,
         },
@@ -284,6 +309,12 @@ export default function CheckoutPage() {
                             <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
                               {address.address}, {address.city}, {address.state} - {address.pincode}
                             </p>
+
+                            {address.landmark && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                Landmark: {address.landmark}
+                              </p>
+                            )}
                           </div>
 
                           <span className="text-sm font-bold">
@@ -315,11 +346,11 @@ export default function CheckoutPage() {
 
                 <div className="border border-green-700 bg-green-950/30 p-5">
                   <p className="font-black text-green-400">
-                    5% OFF applied on prepaid order
+                    Secure online payment through PhonePe
                   </p>
 
                   <p className="text-sm text-muted-foreground mt-1">
-                    Discount automatically applied at checkout.
+                    Your order is confirmed after successful payment.
                   </p>
                 </div>
               </section>
@@ -422,11 +453,6 @@ export default function CheckoutPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping</span>
                   <span>{shipping === 0 ? "FREE" : `₹${shipping}`}</span>
-                </div>
-
-                <div className="flex justify-between text-green-400">
-                  <span>Prepaid Discount</span>
-                  <span>-₹{prepaidDiscount}</span>
                 </div>
 
                 {couponDiscount > 0 && (

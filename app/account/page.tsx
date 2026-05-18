@@ -6,29 +6,40 @@ import { User, Mail, Phone, Save } from "lucide-react"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 export default function AccountPage() {
+  const { user, loading } = useAuth()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const profileStorageKey = user ? `the-paddler-profile-${user.uid}` : null
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("user")
+    if (loading || !user || !profileStorageKey) return
 
-    if (savedUser) {
-      const user = JSON.parse(savedUser)
-      setName(user.name || "")
-      setEmail(user.email || "")
-      setPhone(user.phone || "")
+    const savedProfile = localStorage.getItem(profileStorageKey)
+
+    setName(user.displayName || "Customer")
+    setEmail(user.email || "")
+
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile)
+      setName(profile.name || user.displayName || "Customer")
+      setEmail(profile.email || user.email || "")
+      setPhone(profile.phone || "")
     }
-  }, [])
+  }, [loading, profileStorageKey, user])
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!profileStorageKey) return
+
     localStorage.setItem(
-      "user",
+      profileStorageKey,
       JSON.stringify({
+        uid: user?.uid,
         name,
         email,
         phone,

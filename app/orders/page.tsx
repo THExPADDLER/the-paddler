@@ -28,7 +28,6 @@ type CustomerOrder = {
   pricing: {
     subtotal?: number
     shipping?: number
-    prepaidDiscount?: number
     couponDiscount?: number
     total: number
   }
@@ -37,6 +36,13 @@ type CustomerOrder = {
     status?: string
     gateway?: string
   }
+  shipment?: {
+    awb?: string
+    shipmentId?: string | number
+    courierName?: string
+    status?: string
+  }
+  trackingId?: string
   createdAt: string
   returnRequested?: boolean
 }
@@ -60,44 +66,85 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [returningOrderId, setReturningOrderId] = useState<string | null>(null)
+  const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState<string | null>(null)
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
+
+  const fetchOrders = async () => {
+    if (loading) return
+
+    if (!user) {
+      router.push("/login?redirect=/orders")
+      return
+    }
+
+    try {
+      setLoadingOrders(true)
+
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("userId", "==", user.uid)
+      )
+      const snapshot = await getDocs(ordersQuery)
+      const fetchedOrders = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...(item.data() as Omit<CustomerOrder, "id">),
+      }))
+
+      fetchedOrders.sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      })
+
+      setOrders(fetchedOrders)
+    } catch (error) {
+      console.error("ORDERS FETCH ERROR:", error)
+      alert("Unable to load orders.")
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (loading) return
+    fetchOrders()
+  }, [loading, user])
 
-      if (!user) {
-        router.push("/login?redirect=/orders")
+  const checkPaymentStatus = async (order: CustomerOrder) => {
+    setCheckingPaymentOrderId(order.id)
+
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20000)
+      const response = await fetch(
+        `/api/phonepe/status?orderId=${encodeURIComponent(order.id)}`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeout)
+      const data = await response.json()
+
+      if (!response.ok || !data?.ok) {
+        console.error("PAYMENT STATUS REFRESH ERROR:", data)
+        alert(data?.message || "Unable to refresh payment status.")
         return
       }
 
-      try {
-        setLoadingOrders(true)
+      await fetchOrders()
 
-        const ordersQuery = query(
-          collection(db, "orders"),
-          where("userId", "==", user.uid)
+      if (data.paymentStatus === "success") {
+        alert(
+          data.shipmentError
+            ? `Payment is successful, but Shiprocket needs attention: ${data.shipmentError}`
+            : "Payment confirmed. Shipment creation has been triggered."
         )
-        const snapshot = await getDocs(ordersQuery)
-        const fetchedOrders = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...(item.data() as Omit<CustomerOrder, "id">),
-        }))
-
-        fetchedOrders.sort((a, b) => {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        })
-
-        setOrders(fetchedOrders)
-      } catch (error) {
-        console.error("ORDERS FETCH ERROR:", error)
-        alert("Unable to load orders.")
-      } finally {
-        setLoadingOrders(false)
+        return
       }
-    }
 
-    fetchOrders()
-  }, [loading, router, user])
+      alert(`Current payment status: ${formatStatus(data.paymentStatus || "pending")}`)
+    } catch (error) {
+      console.error("PAYMENT STATUS REFRESH ERROR:", error)
+      alert("Unable to refresh payment status.")
+    } finally {
+      setCheckingPaymentOrderId(null)
+    }
+  }
 
   const requestReturn = async (order: CustomerOrder) => {
     if (!user) return
@@ -112,6 +159,11 @@ export default function OrdersPage() {
       return
     }
 
+    if (order.status !== "delivered") {
+      alert("Return can be requested only after the order is delivered.")
+      return
+    }
+
     const confirmed = window.confirm(
       "Request return for this order? Our team will review it and contact you."
     )
@@ -121,25 +173,24 @@ export default function OrdersPage() {
     setReturningOrderId(order.id)
 
     try {
-      await addDoc(collection(db, "returns"), {
-        orderId: order.id,
-        userId: user.uid,
-        customerEmail: user.email || "",
-        items: order.items,
-        amount: order.pricing.total,
-        reason: "Customer requested return from orders page",
-        status: "return_requested",
-        pickupStatus: "pending",
-        refundStatus: "not_initiated",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const response = await fetch("/api/shiprocket/return", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          userId: user.uid,
+          customerEmail: user.email || "",
+          reason: "Customer requested return from orders page",
+        }),
       })
+      const data = await response.json()
 
-      await updateDoc(doc(db, "orders", order.id), {
-        status: "return_requested",
-        returnRequested: true,
-        updatedAt: new Date().toISOString(),
-      })
+      if (!response.ok || !data?.ok) {
+        alert(data?.message || "Unable to request return.")
+        return
+      }
 
       setOrders((prev) =>
         prev.map((item) =>
@@ -149,12 +200,70 @@ export default function OrdersPage() {
         )
       )
 
-      alert("Return request submitted successfully.")
+      alert(data.message || "Return request submitted successfully.")
     } catch (error) {
       console.error("RETURN REQUEST ERROR:", error)
       alert("Unable to request return. Please try again.")
     } finally {
       setReturningOrderId(null)
+    }
+  }
+
+  const cancelOrder = async (order: CustomerOrder) => {
+    if (!user) {
+      router.push("/login?redirect=/orders")
+      return
+    }
+
+    if (order.status === "cancelled") {
+      alert("This order is already cancelled.")
+      return
+    }
+
+    if (order.status === "delivered") {
+      alert("Delivered orders cannot be cancelled. Please use return.")
+      return
+    }
+
+    if (["shipped", "in_transit"].includes(order.status)) {
+      alert(
+        "This order has already been shipped and cannot be cancelled. It will be delivered to your address. You can request a return after delivery."
+      )
+      return
+    }
+
+    const confirmed = window.confirm(
+      order.payment?.status === "success"
+        ? "Cancel this order and initiate refund to original payment account?"
+        : "Cancel this order?"
+    )
+
+    if (!confirmed) return
+
+    setCancellingOrderId(order.id)
+
+    try {
+      const response = await fetch("/api/phonepe/refund", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await user?.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          reason: "Customer cancelled from orders page",
+          cancelledBy: "customer",
+        }),
+      })
+      const data = await response.json()
+
+      await fetchOrders()
+      alert(data?.message || "Cancellation request completed.")
+    } catch (error) {
+      console.error("ORDER CANCEL ERROR:", error)
+      alert("Unable to cancel order.")
+    } finally {
+      setCancellingOrderId(null)
     }
   }
 
@@ -293,9 +402,9 @@ export default function OrdersPage() {
                               </div>
 
                               <div>
-                                <p className="font-medium">Order Created</p>
+                                <p className="font-medium">Order Placed</p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Your order has been saved.
+                                  Your order has been placed.
                                 </p>
                               </div>
                             </div>
@@ -333,7 +442,9 @@ export default function OrdersPage() {
                               <div>
                                 <p className="font-medium">Shipped</p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Awaiting payment confirmation.
+                                  {order.shipment?.awb
+                                    ? `AWB: ${order.shipment.awb}`
+                                    : "Awaiting shipment creation."}
                                 </p>
                               </div>
                             </div>
@@ -360,6 +471,29 @@ export default function OrdersPage() {
                               DOWNLOAD INVOICE
                             </Link>
 
+                            {(order.shipment?.awb || order.trackingId) && (
+                              <Link
+                                href={`/tracking/${order.id}`}
+                                className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary"
+                              >
+                                TRACK SHIPMENT
+                              </Link>
+                            )}
+
+                            {order.payment?.gateway === "phonepe" &&
+                              order.payment?.status !== "success" && (
+                                <button
+                                  type="button"
+                                  onClick={() => checkPaymentStatus(order)}
+                                  disabled={checkingPaymentOrderId === order.id}
+                                  className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  {checkingPaymentOrderId === order.id
+                                    ? "CHECKING..."
+                                    : "CHECK PAYMENT STATUS"}
+                                </button>
+                              )}
+
                             <button
                               type="button"
                               onClick={() => requestReturn(order)}
@@ -367,7 +501,8 @@ export default function OrdersPage() {
                                 returningOrderId === order.id ||
                                 order.payment?.status !== "success" ||
                                 order.returnRequested ||
-                                order.status === "return_requested"
+                                order.status === "return_requested" ||
+                                order.status !== "delivered"
                               }
                               className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
@@ -378,6 +513,25 @@ export default function OrdersPage() {
                                 : returningOrderId === order.id
                                 ? "REQUESTING..."
                                 : "RETURN"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => cancelOrder(order)}
+                              disabled={
+                                cancellingOrderId === order.id ||
+                                order.status === "cancelled" ||
+                                ["shipped", "in_transit", "delivered"].includes(
+                                  order.status
+                                )
+                              }
+                              className="px-5 py-3 border border-border text-sm font-bold text-red-400 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {order.status === "cancelled"
+                                ? "CANCELLED"
+                                : cancellingOrderId === order.id
+                                ? "CANCELLING..."
+                                : "CANCEL NOW"}
                             </button>
                           </div>
                         </div>

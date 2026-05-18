@@ -1,6 +1,9 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { onAuthStateChanged } from "firebase/auth"
+
+import { auth } from "@/lib/firebase"
 
 export interface WishlistItem {
   id: number
@@ -25,22 +28,37 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<WishlistItem[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
+  const [storageKey, setStorageKey] = useState("the-paddler-wishlist-guest")
 
   useEffect(() => {
-    const savedWishlist = localStorage.getItem("the-paddler-wishlist")
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setStorageKey(
+        firebaseUser
+          ? `the-paddler-wishlist-${firebaseUser.uid}`
+          : "the-paddler-wishlist-guest"
+      )
+    })
 
-    if (savedWishlist) {
-      setItems(JSON.parse(savedWishlist))
-    }
-
-    setIsLoaded(true)
+    return () => unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("the-paddler-wishlist", JSON.stringify(items))
+    const savedWishlist = localStorage.getItem(storageKey)
+
+    if (savedWishlist) {
+      setItems(JSON.parse(savedWishlist))
+    } else {
+      setItems([])
     }
-  }, [items, isLoaded])
+
+    setIsLoaded(true)
+  }, [storageKey])
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(storageKey, JSON.stringify(items))
+    }
+  }, [items, isLoaded, storageKey])
 
   const addToWishlist = (item: WishlistItem) => {
     setItems((prev) => {

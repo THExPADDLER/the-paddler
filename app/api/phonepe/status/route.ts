@@ -2,6 +2,25 @@ import { NextResponse } from "next/server"
 import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
+import { createShiprocketShipmentForOrder } from "@/lib/shiprocket"
+
+const fetchWithTimeout = async (
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = 12000
+) => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 const getPhonePeConfig = () => {
   const clientId = process.env.PHONEPE_CLIENT_ID
@@ -26,7 +45,7 @@ const getPhonePeConfig = () => {
 async function getAccessToken() {
   const { clientId, clientSecret, clientVersion, apiBaseUrl } = getPhonePeConfig()
 
-  const response = await fetch(`${apiBaseUrl}/v1/oauth/token`, {
+  const response = await fetchWithTimeout(`${apiBaseUrl}/v1/oauth/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -97,7 +116,7 @@ export async function GET(request: Request) {
     const { apiBaseUrl } = getPhonePeConfig()
     const accessToken = await getAccessToken()
 
-    const statusResponse = await fetch(
+    const statusResponse = await fetchWithTimeout(
       `${apiBaseUrl}/checkout/v2/order/${orderId}/status`,
       {
         method: "GET",
@@ -105,7 +124,8 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
           Authorization: `O-Bearer ${accessToken}`,
         },
-      }
+      },
+      12000
     )
 
     const statusData = await statusResponse.json().catch(() => null)
@@ -154,6 +174,24 @@ export async function GET(request: Request) {
       )
     )
 
+    let shipment = null
+    let shipmentError = null
+
+    if (paymentStatus === "success") {
+      try {
+        shipment = await createShiprocketShipmentForOrder(orderId)
+      } catch (error) {
+        shipmentError =
+          error instanceof Error
+            ? error.message
+            : "Unable to create Shiprocket shipment."
+        console.error("SHIPROCKET AFTER PAYMENT ERROR:", {
+          orderId,
+          error,
+        })
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       orderId,
@@ -161,6 +199,8 @@ export async function GET(request: Request) {
       paymentStatus,
       phonepeState: state,
       phonepe: statusData,
+      shipment,
+      shipmentError,
     })
   } catch (error) {
     console.error("PHONEPE STATUS CHECK ERROR:", error)

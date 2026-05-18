@@ -19,11 +19,6 @@ const faqs = [
       "Currently, we do not offer Cash On Delivery. Orders can be placed using prepaid payment methods only.",
   },
   {
-    question: "Do prepaid orders get any discount?",
-    answer:
-      "Yes, prepaid orders may get special offers such as 5% OFF during selected drops or campaigns.",
-  },
-  {
     question: "What is your return policy?",
     answer:
       "We offer a 3-day return policy from the date of delivery.",
