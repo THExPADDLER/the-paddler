@@ -8,17 +8,19 @@ import { useRouter } from "next/navigation"
 import { useCart } from "@/lib/cart-context"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 export default function CartPage() {
   const router = useRouter()
 
   const { items, removeItem, updateQuantity, totalPrice } = useCart()
+  const { user, loading } = useAuth()
 
   const shipping = 0
   const total = totalPrice + shipping
 
   const handleProceedToCheckout = () => {
-    const user = localStorage.getItem("user")
+    if (loading) return
 
     if (!user) {
       router.push("/login?redirect=/checkout")

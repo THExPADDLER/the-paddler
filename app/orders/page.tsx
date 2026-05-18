@@ -1,40 +1,169 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { CheckCircle2, Clock3, Package, RotateCcw, Truck } from "lucide-react"
 import {
-  Package,
-  Truck,
-  CheckCircle2,
-  Clock3,
-  RotateCcw,
-} from "lucide-react"
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { useAuth } from "@/app/providers/AuthProvider"
+import { db } from "@/lib/firebase"
+import type { CartItem } from "@/lib/cart-context"
 
-const demoOrders = [
-  {
-    id: "#TP1024",
-    productName: "SKULL ART TEE",
-    image: "/images/products/black-tee-3.jpg",
-    price: 1399,
-    size: "L",
-    status: "In Transit",
-    orderedDate: "15 May 2026",
-    estimatedDelivery: "20 May 2026",
-  },
-]
+type CustomerOrder = {
+  id: string
+  invoiceNumber?: string
+  items: CartItem[]
+  pricing: {
+    subtotal?: number
+    shipping?: number
+    prepaidDiscount?: number
+    couponDiscount?: number
+    total: number
+  }
+  status: string
+  payment?: {
+    status?: string
+    gateway?: string
+  }
+  createdAt: string
+  returnRequested?: boolean
+}
+
+const formatStatus = (status: string) => {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+const getStatusColor = (status: string) => {
+  if (status === "paid" || status === "success") return "text-green-400"
+  if (status.includes("failed")) return "text-red-400"
+  return "text-yellow-400"
+}
 
 export default function OrdersPage() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
+  const [orders, setOrders] = useState<CustomerOrder[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [returningOrderId, setReturningOrderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (loading) return
+
+      if (!user) {
+        router.push("/login?redirect=/orders")
+        return
+      }
+
+      try {
+        setLoadingOrders(true)
+
+        const ordersQuery = query(
+          collection(db, "orders"),
+          where("userId", "==", user.uid)
+        )
+        const snapshot = await getDocs(ordersQuery)
+        const fetchedOrders = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...(item.data() as Omit<CustomerOrder, "id">),
+        }))
+
+        fetchedOrders.sort((a, b) => {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+
+        setOrders(fetchedOrders)
+      } catch (error) {
+        console.error("ORDERS FETCH ERROR:", error)
+        alert("Unable to load orders.")
+      } finally {
+        setLoadingOrders(false)
+      }
+    }
+
+    fetchOrders()
+  }, [loading, router, user])
+
+  const requestReturn = async (order: CustomerOrder) => {
+    if (!user) return
+
+    if (order.payment?.status !== "success") {
+      alert("Return can be requested only after successful payment.")
+      return
+    }
+
+    if (order.returnRequested || order.status === "return_requested") {
+      alert("Return request already submitted for this order.")
+      return
+    }
+
+    const confirmed = window.confirm(
+      "Request return for this order? Our team will review it and contact you."
+    )
+
+    if (!confirmed) return
+
+    setReturningOrderId(order.id)
+
+    try {
+      await addDoc(collection(db, "returns"), {
+        orderId: order.id,
+        userId: user.uid,
+        customerEmail: user.email || "",
+        items: order.items,
+        amount: order.pricing.total,
+        reason: "Customer requested return from orders page",
+        status: "return_requested",
+        pickupStatus: "pending",
+        refundStatus: "not_initiated",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+
+      await updateDoc(doc(db, "orders", order.id), {
+        status: "return_requested",
+        returnRequested: true,
+        updatedAt: new Date().toISOString(),
+      })
+
+      setOrders((prev) =>
+        prev.map((item) =>
+          item.id === order.id
+            ? { ...item, status: "return_requested", returnRequested: true }
+            : item
+        )
+      )
+
+      alert("Return request submitted successfully.")
+    } catch (error) {
+      console.error("RETURN REQUEST ERROR:", error)
+      alert("Unable to request return. Please try again.")
+    } finally {
+      setReturningOrderId(null)
+    }
+  }
+
   return (
     <>
       <Header />
 
       <main className="min-h-screen bg-background text-foreground pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          {/* Header */}
           <div className="mb-10">
             <p className="text-xs tracking-[0.35em] text-muted-foreground mb-3">
               CUSTOMER DASHBOARD
@@ -45,8 +174,11 @@ export default function OrdersPage() {
             </h1>
           </div>
 
-          {/* Empty State */}
-          {demoOrders.length === 0 ? (
+          {loadingOrders ? (
+            <div className="border border-border bg-secondary/20 py-24 text-center">
+              <p className="text-muted-foreground">Loading your orders...</p>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="border border-border bg-secondary/20 py-24 text-center">
               <Package className="w-14 h-14 mx-auto text-muted-foreground mb-6" />
 
@@ -67,193 +199,195 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              {demoOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="border border-border bg-secondary/20 overflow-hidden"
-                >
-                  {/* Top Bar */}
-                  <div className="border-b border-border px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        ORDER ID
-                      </p>
+              {orders.map((order) => {
+                const firstItem = order.items[0]
+                const orderedDate = new Date(order.createdAt).toLocaleDateString(
+                  "en-IN",
+                  {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  }
+                )
 
-                      <p className="font-bold">
-                        {order.id}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        ORDERED ON
-                      </p>
-
-                      <p className="font-medium">
-                        {order.orderedDate}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        STATUS
-                      </p>
-
-                      <p className="font-medium text-yellow-400">
-                        {order.status}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6">
-                    <div className="flex flex-col lg:flex-row gap-8">
-
-                      {/* Product */}
-                      <div className="flex gap-5 flex-1">
-                        <div className="relative w-28 h-32 bg-neutral-900 overflow-hidden flex-shrink-0">
-                          <Image
-                            src={order.image}
-                            alt={order.productName}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-
-                        <div>
-                          <h2 className="font-black text-lg">
-                            {order.productName}
-                          </h2>
-
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Size: {order.size}
-                          </p>
-
-                          <p className="font-bold mt-4">
-                            ₹{order.price}
-                          </p>
-
-                          <p className="text-sm text-muted-foreground mt-4">
-                            Estimated Delivery:
-                          </p>
-
-                          <p className="font-medium">
-                            {order.estimatedDelivery}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Tracking */}
-                      <div className="lg:w-[420px]">
-                        <h3 className="font-bold mb-6">
-                          TRACK ORDER
-                        </h3>
-
-                        <div className="space-y-6">
-
-                          {/* Processing */}
-                          <div className="flex gap-4">
-                            <div className="flex flex-col items-center">
-                              <CheckCircle2 className="w-5 h-5 text-green-500" />
-                              <div className="w-px h-10 bg-border mt-2" />
-                            </div>
-
-                            <div>
-                              <p className="font-medium">
-                                Processing
-                              </p>
-
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Your order has been confirmed
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Shipped */}
-                          <div className="flex gap-4">
-                            <div className="flex flex-col items-center">
-                              <Truck className="w-5 h-5 text-green-500" />
-                              <div className="w-px h-10 bg-border mt-2" />
-                            </div>
-
-                            <div>
-                              <p className="font-medium">
-                                Shipped
-                              </p>
-
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Package dispatched from warehouse
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Transit */}
-                          <div className="flex gap-4">
-                            <div className="flex flex-col items-center">
-                              <Clock3 className="w-5 h-5 text-yellow-400" />
-                              <div className="w-px h-10 bg-border mt-2" />
-                            </div>
-
-                            <div>
-                              <p className="font-medium text-yellow-400">
-                                In Transit
-                              </p>
-
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Your order is on the way
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Delivered */}
-                          <div className="flex gap-4 opacity-40">
-                            <div className="flex flex-col items-center">
-                              <Package className="w-5 h-5" />
-                            </div>
-
-                            <div>
-                              <p className="font-medium">
-                                Delivered
-                              </p>
-
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Awaiting delivery completion
-                              </p>
-                            </div>
-                          </div>
-
-                        </div>
-
-                        {/* Buttons */}
-                        <div className="flex flex-wrap gap-3 mt-8">
-                          <button className="px-5 py-3 bg-foreground text-background text-sm font-bold hover:bg-foreground/90 transition-colors">
-                            TRACK PACKAGE
-                          </button>
-
-                          <button className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors">
-                            DOWNLOAD INVOICE
-                          </button>
-
-                          <button className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors flex items-center gap-2">
-                            <RotateCcw className="w-4 h-4" />
-                            RETURN
-                          </button>
-                        </div>
-
-                        {/* Refund Info */}
-                        <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
-                          Refunds are initiated once the courier pickup is confirmed.
-                          Return requests are accepted within 3 days of delivery.
+                return (
+                  <div
+                    key={order.id}
+                    className="border border-border bg-secondary/20 overflow-hidden"
+                  >
+                    <div className="border-b border-border px-6 py-4 grid sm:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">ORDER ID</p>
+                        <p className="font-bold break-all">#{order.id}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Invoice:{" "}
+                          <span className="text-foreground font-bold">
+                            {order.invoiceNumber || order.id}
+                          </span>
                         </p>
+                      </div>
 
+                      <div>
+                        <p className="text-xs text-muted-foreground">ORDERED ON</p>
+                        <p className="font-medium">{orderedDate}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-muted-foreground">STATUS</p>
+                        <p className={`font-medium ${getStatusColor(order.status)}`}>
+                          {formatStatus(order.status)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-muted-foreground">PAYMENT</p>
+                        <p className={`font-medium ${getStatusColor(order.payment?.status || "pending")}`}>
+                          {formatStatus(order.payment?.status || "pending")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6">
+                      <div className="flex flex-col lg:flex-row gap-8">
+                        <div className="flex gap-5 flex-1">
+                          {firstItem && (
+                            <div className="relative w-28 h-32 bg-neutral-900 overflow-hidden flex-shrink-0">
+                              <Image
+                                src={firstItem.image}
+                                alt={firstItem.name}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <h2 className="font-black text-lg">
+                              {firstItem?.name || "Order items"}
+                            </h2>
+
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {order.items.length} item{order.items.length === 1 ? "" : "s"}
+                            </p>
+
+                            {firstItem && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Size: {firstItem.size} / Qty: {firstItem.quantity}
+                              </p>
+                            )}
+
+                            <p className="font-bold mt-4">
+                              ₹{order.pricing.total}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="lg:w-[420px]">
+                          <h3 className="font-bold mb-6">TRACK ORDER</h3>
+
+                          <div className="space-y-6">
+                            <div className="flex gap-4">
+                              <div className="flex flex-col items-center">
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                <div className="w-px h-10 bg-border mt-2" />
+                              </div>
+
+                              <div>
+                                <p className="font-medium">Order Created</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Your order has been saved.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                              <div className="flex flex-col items-center">
+                                <Clock3 className="w-5 h-5 text-yellow-400" />
+                                <div className="w-px h-10 bg-border mt-2" />
+                              </div>
+
+                              <div>
+                                <p className={`font-medium ${getStatusColor(order.payment?.status || "pending")}`}>
+                                  {order.payment?.status === "success"
+                                    ? "Payment Successful"
+                                    : order.payment?.status === "failed"
+                                    ? "Payment Failed"
+                                    : "Payment Pending"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {order.payment?.status === "success"
+                                    ? "Payment has been confirmed by PhonePe."
+                                    : order.payment?.status === "failed"
+                                    ? "Payment failed. Please contact support or try again."
+                                    : "Waiting for PhonePe confirmation."}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-4 opacity-40">
+                              <div className="flex flex-col items-center">
+                                <Truck className="w-5 h-5" />
+                                <div className="w-px h-10 bg-border mt-2" />
+                              </div>
+
+                              <div>
+                                <p className="font-medium">Shipped</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Awaiting payment confirmation.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-4 opacity-40">
+                              <div className="flex flex-col items-center">
+                                <Package className="w-5 h-5" />
+                              </div>
+
+                              <div>
+                                <p className="font-medium">Delivered</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Awaiting dispatch.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3 mt-8">
+                            <Link
+                              href={`/invoice/${order.id}`}
+                              className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary"
+                            >
+                              DOWNLOAD INVOICE
+                            </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => requestReturn(order)}
+                              disabled={
+                                returningOrderId === order.id ||
+                                order.payment?.status !== "success" ||
+                                order.returnRequested ||
+                                order.status === "return_requested"
+                              }
+                              className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                              {order.returnRequested ||
+                              order.status === "return_requested"
+                                ? "RETURN REQUESTED"
+                                : returningOrderId === order.id
+                                ? "REQUESTING..."
+                                : "RETURN"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
-
         </div>
       </main>
 

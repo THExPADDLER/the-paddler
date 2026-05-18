@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import {
@@ -18,6 +18,18 @@ export default function SignupPage() {
   const [gender, setGender] = useState("Male");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [redirectQuery, setRedirectQuery] = useState("");
+
+  useEffect(() => {
+    setRedirectQuery(window.location.search);
+  }, []);
+
+  const getRedirectPath = () => {
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+
+    return redirect && redirect.startsWith("/") ? redirect : "/";
+  };
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +47,7 @@ export default function SignupPage() {
       alert("Signup successful");
 
       setTimeout(() => {
-        router.push("/");
+        router.push(getRedirectPath());
       }, 800);
     } catch (error: any) {
       console.error("SIGNUP ERROR:", error);
@@ -58,7 +70,7 @@ export default function SignupPage() {
       alert("Google Signup Success");
 
       setTimeout(() => {
-        router.push("/");
+        router.push(getRedirectPath());
       }, 800);
     } catch (error) {
       console.error("GOOGLE SIGNUP ERROR:", error);
@@ -177,7 +189,10 @@ export default function SignupPage() {
 
         <p className="text-center text-white/60 text-sm mt-6">
           Already have an account?{" "}
-          <a href="/login" className="text-white underline">
+          <a
+            href={`/login${redirectQuery}`}
+            className="text-white underline"
+          >
             Login
           </a>
         </p>

@@ -1,28 +1,88 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Heart, SlidersHorizontal } from "lucide-react"
+import { collection, getDocs, orderBy, query } from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { products } from "@/lib/products"
+import { db } from "@/lib/firebase"
+import { products as localProducts, type Product } from "@/lib/products"
 import { useWishlist } from "@/lib/wishlist-context"
 
 type SortOption = "featured" | "price-low" | "price-high"
 type StockOption = "all" | "in-stock" | "sold-out"
 
-const colorOptions = ["All", ...Array.from(new Set(products.map((product) => product.color)))]
+type FirestoreProduct = Product & {
+  stock?: number
+  createdAt?: string
+}
+
+const normalizeProduct = (product: FirestoreProduct): Product => {
+  const fallbackMrp = product.mrp || 1999
+
+  return {
+    ...product,
+    images: product.images?.length ? product.images : [product.image],
+    mrp: fallbackMrp > product.price ? fallbackMrp : undefined,
+    inStock:
+      typeof product.stock === "number" ? product.stock > 0 : product.inStock,
+  }
+}
 
 export default function ShopPage() {
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(
+    localProducts.map(normalizeProduct)
+  )
+  const [loading, setLoading] = useState(true)
   const [selectedColor, setSelectedColor] = useState("All")
   const [stock, setStock] = useState<StockOption>("all")
   const [sort, setSort] = useState<SortOption>("featured")
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
 
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true)
+
+        const productsQuery = query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc")
+        )
+        const snapshot = await getDocs(productsQuery)
+
+        if (snapshot.empty) {
+          setCatalogProducts(localProducts.map(normalizeProduct))
+          return
+        }
+
+        setCatalogProducts(
+          snapshot.docs.map((item) =>
+            normalizeProduct(item.data() as FirestoreProduct)
+          )
+        )
+      } catch (error) {
+        console.error("SHOP PRODUCTS FETCH ERROR:", error)
+        setCatalogProducts(localProducts.map(normalizeProduct))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProducts()
+  }, [])
+
+  const colorOptions = useMemo(() => {
+    return [
+      "All",
+      ...Array.from(new Set(catalogProducts.map((product) => product.color))),
+    ]
+  }, [catalogProducts])
+
   const filteredProducts = useMemo(() => {
-    const filtered = products.filter((product) => {
+    const filtered = catalogProducts.filter((product) => {
       const colorMatch = selectedColor === "All" || product.color === selectedColor
       const stockMatch =
         stock === "all" ||
@@ -37,7 +97,7 @@ export default function ShopPage() {
       if (sort === "price-high") return b.price - a.price
       return a.id - b.id
     })
-  }, [selectedColor, sort, stock])
+  }, [catalogProducts, selectedColor, sort, stock])
 
   return (
     <>
@@ -63,7 +123,9 @@ export default function ShopPage() {
 
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <SlidersHorizontal className="w-4 h-4" />
-                {filteredProducts.length} of {products.length} products
+                {loading
+                  ? "Loading products..."
+                  : `${filteredProducts.length} of ${catalogProducts.length} products`}
               </div>
             </div>
           </div>

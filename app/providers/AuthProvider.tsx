@@ -25,8 +25,20 @@ export function AuthProvider({
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-
       setUser(currentUser);
+
+      if (currentUser) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            uid: currentUser.uid,
+            name: currentUser.displayName || "Customer",
+            email: currentUser.email || "",
+          })
+        );
+      } else {
+        localStorage.removeItem("user");
+      }
 
       setLoading(false);
     });

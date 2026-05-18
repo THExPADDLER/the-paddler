@@ -91,14 +91,14 @@ export function Header() {
             <Link
               href="/"
               onClick={closeAll}
-              className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center"
+              className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center overflow-visible"
             >
               <Image
                 src="/images/paddler-logo-removedbg.png"
                 alt="THE PADDLER"
-                width={170}
-                height={55}
-                className="object-contain max-h-12"
+                width={320}
+                height={104}
+                className="object-contain h-20 w-auto -my-2"
                 priority
               />
             </Link>

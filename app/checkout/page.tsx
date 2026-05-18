@@ -5,10 +5,13 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Lock, MapPin, Tag, Truck } from "lucide-react"
+import { addDoc, collection } from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useCart } from "@/lib/cart-context"
+import { useAuth } from "@/app/providers/AuthProvider"
+import { db } from "@/lib/firebase"
 
 type Address = {
   id: number
@@ -21,17 +24,36 @@ type Address = {
   type: string
 }
 
+const createInvoiceNumber = () => {
+  const now = new Date()
+  const datePart = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("")
+  const timePart = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0"),
+  ].join("")
+  const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase()
+
+  return `TP-INV-${datePart}-${timePart}-${randomPart}`
+}
+
 export default function CheckoutPage() {
   const router = useRouter()
-  const { items, totalPrice } = useCart()
+  const { items, totalPrice, clearCart } = useCart()
+  const { user, loading } = useAuth()
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
   const [coupon, setCoupon] = useState("")
   const [couponDiscount, setCouponDiscount] = useState(0)
+  const [placingOrder, setPlacingOrder] = useState(false)
 
   useEffect(() => {
-    const user = localStorage.getItem("user")
+    if (loading) return
 
     if (!user) {
       router.push("/login?redirect=/checkout")
@@ -48,7 +70,7 @@ export default function CheckoutPage() {
         setSelectedAddressId(parsed[0].id)
       }
     }
-  }, [router])
+  }, [loading, router, user])
 
   const shipping = totalPrice >= 1500 ? 0 : 80
   const prepaidDiscount = Math.round(totalPrice * 0.05)
@@ -64,18 +86,100 @@ export default function CheckoutPage() {
     }
   }
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (items.length === 0) {
       alert("Your cart is empty.")
       return
     }
 
-    if (!selectedAddressId) {
+    if (!user) {
+      router.push("/login?redirect=/checkout")
+      return
+    }
+
+    const selectedAddress = addresses.find(
+      (address) => address.id === selectedAddressId
+    )
+
+    if (!selectedAddress) {
       alert("Please select or add a delivery address.")
       return
     }
 
-    alert("Razorpay payment integration will be connected in backend step.")
+    setPlacingOrder(true)
+
+    try {
+      const invoiceNumber = createInvoiceNumber()
+
+      const orderRef = await addDoc(collection(db, "orders"), {
+        invoiceNumber,
+        userId: user.uid,
+        customer: {
+          name: user.displayName || selectedAddress.fullName,
+          email: user.email || "",
+          phone: selectedAddress.phone,
+        },
+        items,
+        address: selectedAddress,
+        pricing: {
+          subtotal: totalPrice,
+          shipping,
+          prepaidDiscount,
+          couponCode: coupon.trim().toUpperCase() || null,
+          couponDiscount,
+          total,
+        },
+        payment: {
+          gateway: "phonepe",
+          status: "pending",
+        },
+        status: "pending_payment",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+
+      await addDoc(collection(db, "invoices"), {
+        invoiceNumber,
+        orderId: orderRef.id,
+        userId: user.uid,
+        customerEmail: user.email || "",
+        total,
+        paymentStatus: "pending",
+        createdAt: new Date().toISOString(),
+      })
+
+      const response = await fetch("/api/phonepe/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          merchantOrderId: orderRef.id,
+          amount: total,
+          customer: {
+            email: user.email || "",
+            phone: selectedAddress.phone,
+          },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data?.redirectUrl) {
+        console.error("PHONEPE CREATE PAYMENT ERROR:", data)
+        alert("Order created, but PhonePe payment could not start. You can retry payment from orders later.")
+        router.push("/orders")
+        return
+      }
+
+      clearCart()
+      window.location.href = data.redirectUrl
+    } catch (error) {
+      console.error("ORDER CREATE ERROR:", error)
+      alert("Unable to create order. Please try again.")
+    } finally {
+      setPlacingOrder(false)
+    }
   }
 
   if (items.length === 0) {
@@ -340,14 +444,15 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePayment}
-                className="w-full mt-8 bg-foreground text-background py-4 font-black hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2"
+                disabled={placingOrder}
+                className="w-full mt-8 bg-foreground text-background py-4 font-black hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 <Lock className="w-4 h-4" />
-                PAY ₹{total}
+                {placingOrder ? "CREATING ORDER..." : `PAY ₹${total}`}
               </button>
 
               <p className="text-xs text-muted-foreground text-center mt-4">
-                Secured by Razorpay. Backend integration pending.
+                PhonePe payment connection is next. This creates a pending order first.
               </p>
             </aside>
 
