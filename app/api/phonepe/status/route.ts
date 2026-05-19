@@ -169,7 +169,7 @@ export async function GET(request: Request) {
     const accessToken = await getAccessToken()
 
     const statusResponse = await fetchWithTimeout(
-      `${apiBaseUrl}/checkout/v2/order/${orderId}/status`,
+      `${apiBaseUrl}/checkout/v2/order/${orderId}/status?details=false&errorContext=true`,
       {
         method: "GET",
         headers: {

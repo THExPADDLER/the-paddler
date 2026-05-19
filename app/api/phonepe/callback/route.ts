@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import crypto from "crypto"
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
@@ -28,6 +29,13 @@ const parseBasicAuth = (header: string | null) => {
   }
 }
 
+const createPhonePeWebhookHash = (username: string, password: string) => {
+  return crypto
+    .createHash("sha256")
+    .update(`${username}:${password}`)
+    .digest("hex")
+}
+
 const isWebhookAuthorized = (request: Request) => {
   const authRequired = process.env.PHONEPE_WEBHOOK_AUTH_REQUIRED === "true"
   const expected = getWebhookCredentials()
@@ -42,11 +50,21 @@ const isWebhookAuthorized = (request: Request) => {
     return false
   }
 
-  const received = parseBasicAuth(request.headers.get("authorization"))
+  const authHeader = request.headers.get("authorization") || ""
+  const expectedHash = createPhonePeWebhookHash(
+    expected.username,
+    expected.password
+  )
+  const receivedBasic = parseBasicAuth(authHeader)
+  const receivedHash = authHeader
+    .replace(/^SHA256\s+/i, "")
+    .replace(/^sha256=/i, "")
+    .trim()
 
   return (
-    received?.username === expected.username &&
-    received?.password === expected.password
+    receivedHash === expectedHash ||
+    (receivedBasic?.username === expected.username &&
+      receivedBasic?.password === expected.password)
   )
 }
 
@@ -258,14 +276,14 @@ export async function POST(request: Request) {
 
       await syncInvoicePayment(merchantOrderId, paymentStatus, phonepeState)
 
-      const sideEffects =
-        paymentStatus === "success"
-          ? await runSuccessSideEffects(merchantOrderId)
-          : {
-              inventoryError: null,
-              shipment: null,
-              shipmentError: null,
-            }
+      if (paymentStatus === "success") {
+        runSuccessSideEffects(merchantOrderId).catch((error) => {
+          console.error("PHONEPE CALLBACK SIDE EFFECTS ERROR:", {
+            orderId: merchantOrderId,
+            error,
+          })
+        })
+      }
 
       return NextResponse.json({
         ok: true,
@@ -273,7 +291,6 @@ export async function POST(request: Request) {
         orderId: merchantOrderId,
         paymentStatus,
         phonepeState,
-        ...sideEffects,
       })
     }
 
