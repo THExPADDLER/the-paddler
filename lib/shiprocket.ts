@@ -54,6 +54,7 @@ type ShiprocketConfig = {
   defaultBreadthCm: number
   defaultHeightCm: number
   defaultCourierId?: number
+  pickupPostcode: string
 }
 
 type ShiprocketTokenCache = {
@@ -102,6 +103,7 @@ const getShiprocketConfig = (): ShiprocketConfig => {
     defaultCourierId: process.env.SHIPROCKET_DEFAULT_COURIER_ID
       ? Number(process.env.SHIPROCKET_DEFAULT_COURIER_ID)
       : undefined,
+    pickupPostcode: process.env.SHIPROCKET_PICKUP_POSTCODE || "462038",
   }
 }
 
@@ -433,6 +435,23 @@ export const trackShiprocketAwb = async (awb: string) => {
 
   return shiprocketFetch<Record<string, unknown>>(
     `/courier/track/awb/${encodeURIComponent(awb)}`,
+    {
+      method: "GET",
+    }
+  )
+}
+
+export const checkShiprocketServiceability = async (deliveryPostcode: string) => {
+  const config = getShiprocketConfig()
+  const params = new URLSearchParams({
+    pickup_postcode: config.pickupPostcode,
+    delivery_postcode: deliveryPostcode,
+    cod: "0",
+    weight: String(config.defaultWeightKg),
+  })
+
+  return shiprocketFetch<Record<string, unknown>>(
+    `/courier/serviceability?${params.toString()}`,
     {
       method: "GET",
     }

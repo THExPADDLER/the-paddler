@@ -11,17 +11,27 @@ export function Hero() {
       {/* Background */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/images/hero.jpg"
+          src="/images/hero/hero-mobile.webp"
           alt="THE PADDLER Hero"
           fill
           priority
-          className="object-cover object-center scale-105"
+          sizes="100vw"
+          className="object-cover object-center sm:hidden"
+        />
+
+        <Image
+          src="/images/hero/hero-desktop.webp"
+          alt="THE PADDLER Hero"
+          fill
+          priority
+          sizes="100vw"
+          className="hidden object-cover object-center sm:block"
         />
 
         {/* Overlays */}
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/70 via-background/20 to-transparent" />
+        <div className="absolute inset-0 bg-black/45 sm:bg-black/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/35 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-background/25 to-transparent" />
       </div>
 
       
@@ -30,7 +40,7 @@ export function Hero() {
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background to-transparent z-10" />
 
       {/* Main Content */}
-      <div className="relative z-20 w-full pb-16 sm:pb-24 lg:pb-32">
+      <div className="relative z-20 w-full pb-12 sm:pb-24 lg:pb-32 pt-28 sm:pt-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           <div className="max-w-3xl">
@@ -41,7 +51,7 @@ export function Hero() {
             </p>
 
             {/* Heading */}
-            <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.9] text-white">
+            <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tight leading-[0.95] sm:leading-[0.9] text-white">
               NOT JUST
               <br />
               CLOTHING.
@@ -52,13 +62,13 @@ export function Hero() {
             </h1>
 
             {/* Description */}
-            <p className="mt-8 text-base sm:text-lg lg:text-xl text-muted-foreground max-w-xl leading-relaxed">
+            <p className="mt-6 sm:mt-8 text-base sm:text-lg lg:text-xl text-muted-foreground max-w-xl leading-relaxed">
               Built for those who move different. Premium oversized streetwear
               inspired by rebellion, underground culture, and individuality.
             </p>
 
             {/* Buttons */}
-            <div className="flex flex-wrap items-center gap-4 mt-10">
+            <div className="flex flex-wrap items-center gap-4 mt-8 sm:mt-10">
 
               <Link
                 href="/shop"
@@ -78,7 +88,7 @@ export function Hero() {
             </div>
 
             {/* Bottom Stats */}
-            <div className="flex flex-wrap items-center gap-10 mt-14">
+            <div className="flex flex-wrap items-center gap-7 sm:gap-10 mt-10 sm:mt-14">
 
               <div>
                 <p className="text-2xl sm:text-3xl font-black text-white">

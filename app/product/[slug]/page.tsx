@@ -221,7 +221,7 @@ export default function ProductPage() {
     router.push("/cart")
   }
 
-  const checkDelivery = () => {
+  const checkDelivery = async () => {
     const clean = pincode.replace(/\D/g, "").slice(0, 6)
 
     if (clean.length !== 6) {
@@ -231,6 +231,38 @@ export default function ProductPage() {
 
     const city = pincodeData[clean]
     const deliveryDate = getApproxDeliveryDate()
+
+    try {
+      setDeliveryMessage("Checking courier availability...")
+
+      const response = await fetch(
+        `/api/shiprocket/serviceability?pincode=${encodeURIComponent(clean)}`
+      )
+      const data = await response.json()
+
+      if (response.ok && data?.serviceable) {
+        const courierText = data.courierName ? ` via ${data.courierName}` : ""
+        const etaText =
+          data.etd || data.estimatedDeliveryDays
+            ? ` Estimated delivery: ${
+                data.etd ||
+                `${data.estimatedDeliveryDays} business days`
+              }.`
+            : ` Approx delivery by ${deliveryDate}.`
+
+        setDeliveryMessage(
+          `Delivery available${city ? ` in ${city}` : ""}${courierText}.${etaText}`
+        )
+        return
+      }
+
+      if (response.ok && data?.serviceable === false) {
+        setDeliveryMessage("Delivery is currently not serviceable for this pincode.")
+        return
+      }
+    } catch (error) {
+      console.error("SERVICEABILITY CHECK ERROR:", error)
+    }
 
     if (city) {
       setDeliveryMessage(
