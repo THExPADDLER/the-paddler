@@ -11,6 +11,7 @@ import {
   RotateCcw,
   ImageIcon,
   Star,
+  Boxes,
 } from "lucide-react"
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 
@@ -74,6 +75,12 @@ const links = [
     href: "/admin/products",
     desc: "Add products, manage stock, mark sold out.",
     icon: ShoppingBag,
+  },
+  {
+    title: "Inventory",
+    href: "/admin/inventory",
+    desc: "Manage shared color and size stock for blank tees.",
+    icon: Boxes,
   },
   {
     title: "Orders",

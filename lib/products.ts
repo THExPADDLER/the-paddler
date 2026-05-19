@@ -17,6 +17,7 @@ export interface Product {
   care: string[]
   inStock: boolean
   stock?: number
+  stockBySize?: Record<string, number>
 }
 
 export const products: Product[] = [

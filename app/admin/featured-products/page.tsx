@@ -14,8 +14,12 @@ import { products as localProducts, type Product } from "@/lib/products"
 const normalizeProduct = (product: Product): Product => ({
   ...product,
   images: product.images?.length ? product.images : [product.image],
-  inStock:
-    typeof product.stock === "number" ? product.stock > 0 : product.inStock,
+  stock: product.stockBySize
+    ? Object.values(product.stockBySize).reduce((sum, value) => sum + Number(value || 0), 0)
+    : product.stock,
+  inStock: product.stockBySize
+    ? Object.values(product.stockBySize).some((value) => Number(value || 0) > 0)
+    : typeof product.stock === "number" ? product.stock > 0 : product.inStock,
 })
 
 export default function AdminFeaturedProductsPage() {

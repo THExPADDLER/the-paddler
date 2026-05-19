@@ -12,6 +12,7 @@ import { Footer } from "@/components/footer"
 import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { db } from "@/lib/firebase"
+import { createInventoryKey, emptySizeStock, type SizeStock } from "@/lib/inventory"
 
 type Address = {
   id: number
@@ -40,6 +41,64 @@ const createInvoiceNumber = () => {
   const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase()
 
   return `TP-INV-${datePart}-${timePart}-${randomPart}`
+}
+
+const validateSharedInventory = async (
+  items: Array<{
+    name: string
+    description: string
+    quantity: number
+    size: string
+    color?: string
+  }>
+) => {
+  const requiredByColor = items.reduce<Record<string, { color: string; sizes: SizeStock }>>(
+    (acc, item) => {
+      const color = item.color || item.description.split("/")[0]?.trim()
+      const key = createInventoryKey(color)
+
+      if (!key || !item.size) return acc
+
+      if (!acc[key]) {
+        acc[key] = {
+          color,
+          sizes: {},
+        }
+      }
+
+      acc[key].sizes[item.size] =
+        Number(acc[key].sizes[item.size] || 0) + Number(item.quantity || 0)
+
+      return acc
+    },
+    {}
+  )
+
+  for (const [key, group] of Object.entries(requiredByColor)) {
+    const inventorySnap = await getDoc(doc(db, "inventory", key))
+    const stock: SizeStock = inventorySnap.exists()
+      ? ({ ...emptySizeStock, ...inventorySnap.data().stockBySize } as SizeStock)
+      : { ...emptySizeStock }
+
+    for (const [size, quantity] of Object.entries(group.sizes)) {
+      const available = Number(stock[size] || 0)
+
+      if (available < quantity) {
+        return {
+          ok: false,
+          message:
+            available <= 0
+              ? `${group.color} / ${size} is sold out. Please remove it from cart.`
+              : `Only ${available} piece${available === 1 ? "" : "s"} left in ${group.color} / ${size}. Please reduce quantity.`,
+        }
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    message: "",
+  }
 }
 
 export default function CheckoutPage() {
@@ -135,6 +194,13 @@ export default function CheckoutPage() {
     setPlacingOrder(true)
 
     try {
+      const inventoryCheck = await validateSharedInventory(items)
+
+      if (!inventoryCheck.ok) {
+        alert(inventoryCheck.message)
+        return
+      }
+
       const invoiceNumber = createInvoiceNumber()
 
       const orderRef = await addDoc(collection(db, "orders"), {

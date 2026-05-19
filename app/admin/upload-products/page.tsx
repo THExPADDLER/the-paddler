@@ -23,6 +23,11 @@ export default function UploadProductsPage() {
         await setDoc(doc(collection(db, "products"), product.slug), {
           ...product,
           stock: 20,
+          stockBySize: {
+            S: 6,
+            M: 8,
+            L: 6,
+          },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         })

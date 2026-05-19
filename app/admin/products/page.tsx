@@ -14,6 +14,7 @@ import { products as localProducts, type Product } from "@/lib/products"
 
 type AdminProduct = Product & {
   stock?: number
+  stockBySize?: Record<string, number>
   source: "firestore" | "local"
 }
 
@@ -21,15 +22,19 @@ const normalizeProduct = (
   product: Product & { stock?: number },
   source: AdminProduct["source"]
 ): AdminProduct => {
+  const totalStock =
+    typeof product.stock === "number"
+      ? product.stock
+      : product.stockBySize
+      ? Object.values(product.stockBySize).reduce((sum, value) => sum + Number(value || 0), 0)
+      : product.inStock
+      ? 20
+      : 0
+
   return {
     ...product,
     source,
-    stock:
-      typeof product.stock === "number"
-        ? product.stock
-        : product.inStock
-        ? 20
-        : 0,
+    stock: totalStock,
     images: product.images?.length ? product.images : [product.image],
     mrp: product.mrp && product.mrp > product.price ? product.mrp : undefined,
   }
@@ -148,6 +153,11 @@ export default function AdminProductsPage() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {product.color} / {product.sizes.join(" / ")}
                         </p>
+                        {product.stockBySize && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            S: {product.stockBySize.S || 0} / M: {product.stockBySize.M || 0} / L: {product.stockBySize.L || 0}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                           {product.slug}
                         </p>

@@ -52,7 +52,11 @@ export default function EditProductPage() {
   const [badge, setBadge] = useState<BadgeOption>("new-arrival")
   const [description, setDescription] = useState("")
   const [longDescription, setLongDescription] = useState("")
-  const [stock, setStock] = useState("20")
+  const [sizeStock, setSizeStock] = useState({
+    S: "0",
+    M: "0",
+    L: "0",
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -62,6 +66,10 @@ export default function EditProductPage() {
     mrpNumber > 0 && priceNumber > 0 && mrpNumber > priceNumber
       ? Math.round(((mrpNumber - priceNumber) / mrpNumber) * 100)
       : 0
+  const totalStock = Object.values(sizeStock).reduce(
+    (sum, value) => sum + Number(value || 0),
+    0
+  )
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -87,7 +95,17 @@ export default function EditProductPage() {
         setBadge(getBadgeOption(product.badge))
         setDescription(product.description)
         setLongDescription(product.longDescription)
-        setStock(String(product.stock ?? (product.inStock ? 20 : 0)))
+        const legacyStock = Number(product.stock ?? (product.inStock ? 20 : 0))
+        const fallbackSizeStock = {
+          S: Math.floor(legacyStock / 3),
+          M: Math.ceil(legacyStock / 3),
+          L: legacyStock - Math.floor(legacyStock / 3) - Math.ceil(legacyStock / 3),
+        }
+        setSizeStock({
+          S: String(product.stockBySize?.S ?? fallbackSizeStock.S),
+          M: String(product.stockBySize?.M ?? fallbackSizeStock.M),
+          L: String(product.stockBySize?.L ?? fallbackSizeStock.L),
+        })
       } catch (error) {
         console.error("EDIT PRODUCT FETCH ERROR:", error)
       } finally {
@@ -194,8 +212,13 @@ export default function EditProductPage() {
                 "Do not bleach",
                 "Iron inside out on low heat",
               ],
-          inStock: Number(stock) > 0,
-          stock: Number(stock),
+          inStock: totalStock > 0,
+          stock: totalStock,
+          stockBySize: {
+            S: Number(sizeStock.S || 0),
+            M: Number(sizeStock.M || 0),
+            L: Number(sizeStock.L || 0),
+          },
           createdAt:
             (originalProduct as Product & { createdAt?: string }).createdAt ||
             new Date().toISOString(),
@@ -413,14 +436,37 @@ export default function EditProductPage() {
                   required
                 />
 
-                <input
-                  type="number"
-                  placeholder="Stock"
-                  className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
-                  value={stock}
-                  onChange={(event) => setStock(event.target.value)}
-                  required
-                />
+                <div className="border border-border bg-background p-5">
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <p className="text-xs tracking-[0.3em] text-muted-foreground">
+                      SIZE STOCK
+                    </p>
+                    <p className="text-sm font-black text-accent">
+                      TOTAL {totalStock}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    {(["S", "M", "L"] as const).map((size) => (
+                      <label key={size} className="block">
+                        <span className="mb-2 block text-sm font-black">{size}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
+                          value={sizeStock[size]}
+                          onChange={(event) =>
+                            setSizeStock((current) => ({
+                              ...current,
+                              [size]: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
                 <button
                   type="submit"

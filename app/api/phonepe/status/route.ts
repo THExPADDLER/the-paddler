@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
-import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
 import { createShiprocketShipmentForOrder } from "@/lib/shiprocket"
+import { deductSharedInventoryForItems } from "@/lib/inventory"
 
 const fetchWithTimeout = async (
   input: string,
@@ -176,8 +177,32 @@ export async function GET(request: Request) {
 
     let shipment = null
     let shipmentError = null
+    let inventoryError = null
 
     if (paymentStatus === "success") {
+      try {
+        const orderRef = doc(db, "orders", orderId)
+        const orderSnap = await getDoc(orderRef)
+        const order = orderSnap.exists() ? orderSnap.data() : null
+
+        if (order && order.inventoryDeducted !== true) {
+          await deductSharedInventoryForItems(order.items || [])
+          await updateDoc(orderRef, {
+            inventoryDeducted: true,
+            inventoryDeductedAt: new Date().toISOString(),
+          })
+        }
+      } catch (error) {
+        inventoryError =
+          error instanceof Error
+            ? error.message
+            : "Unable to deduct shared inventory."
+        console.error("INVENTORY AFTER PAYMENT ERROR:", {
+          orderId,
+          error,
+        })
+      }
+
       try {
         shipment = await createShiprocketShipmentForOrder(orderId)
       } catch (error) {
@@ -201,6 +226,7 @@ export async function GET(request: Request) {
       phonepe: statusData,
       shipment,
       shipmentError,
+      inventoryError,
     })
   } catch (error) {
     console.error("PHONEPE STATUS CHECK ERROR:", error)

@@ -32,6 +32,7 @@ export function Header() {
   const router = useRouter()
   const { totalItems } = useCart()
   const { totalWishlistItems } = useWishlist()
+  const isAdminRoute = pathname.startsWith("/admin")
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -100,17 +101,19 @@ export function Header() {
                 </button>
               )}
 
-              <button
-                onClick={() => {
-                  setMenuOpen(!menuOpen)
-                  setProfileOpen(false)
-                  setSearchOpen(false)
-                }}
-                className="p-2 hover:bg-secondary rounded-sm transition-colors"
-                aria-label="Open menu"
-              >
-                {menuOpen ? <X className="w-7 h-7 sm:w-6 sm:h-6" /> : <Menu className="w-7 h-7 sm:w-6 sm:h-6" />}
-              </button>
+              {!isAdminRoute && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(!menuOpen)
+                    setProfileOpen(false)
+                    setSearchOpen(false)
+                  }}
+                  className="p-2 hover:bg-secondary rounded-sm transition-colors"
+                  aria-label="Open menu"
+                >
+                  {menuOpen ? <X className="w-7 h-7 sm:w-6 sm:h-6" /> : <Menu className="w-7 h-7 sm:w-6 sm:h-6" />}
+                </button>
+              )}
             </div>
 
             <Link
@@ -243,7 +246,7 @@ export function Header() {
             </div>
           </div>
 
-          {menuOpen && (
+          {menuOpen && !isAdminRoute && (
             <div className="absolute left-4 top-20 w-72 bg-background border border-border shadow-2xl p-6">
               <p className="text-xs tracking-[0.35em] text-muted-foreground mb-6">
                 MENU

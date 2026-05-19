@@ -12,13 +12,17 @@ import { useWishlist } from "@/lib/wishlist-context"
 
 const normalizeProduct = (product: Product): Product => {
   const fallbackMrp = product.mrp || 1999
+  const totalStock = product.stockBySize
+    ? Object.values(product.stockBySize).reduce((sum, value) => sum + Number(value || 0), 0)
+    : product.stock
 
   return {
     ...product,
     images: product.images?.length ? product.images : [product.image],
     mrp: fallbackMrp > product.price ? fallbackMrp : undefined,
     inStock:
-      typeof product.stock === "number" ? product.stock > 0 : product.inStock,
+      typeof totalStock === "number" ? totalStock > 0 : product.inStock,
+    stock: typeof totalStock === "number" ? totalStock : product.stock,
   }
 }
 

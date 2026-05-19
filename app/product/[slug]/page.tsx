@@ -33,6 +33,7 @@ import { Footer } from "@/components/footer"
 import { db } from "@/lib/firebase"
 import { useCart } from "@/lib/cart-context"
 import { useWishlist } from "@/lib/wishlist-context"
+import { getSharedInventory, type SizeStock } from "@/lib/inventory"
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -68,6 +69,24 @@ const getApproxDeliveryDate = () => {
   }).format(date)
 }
 
+const getTotalStock = (product: Product) => {
+  if (product.stockBySize) {
+    return Object.values(product.stockBySize).reduce(
+      (sum, value) => sum + Number(value || 0),
+      0
+    )
+  }
+
+  if (typeof product.stock === "number") return product.stock
+
+  return product.inStock ? 20 : 0
+}
+
+const getSizeStock = (product: Product, size: string) => {
+  if (product.stockBySize) return Number(product.stockBySize[size] || 0)
+  return product.inStock ? getTotalStock(product) : 0
+}
+
 export default function ProductPage() {
   const params = useParams()
   const router = useRouter()
@@ -89,6 +108,7 @@ export default function ProductPage() {
   const [notifyEmail, setNotifyEmail] = useState("")
   const [coupon, setCoupon] = useState("")
   const [couponMessage, setCouponMessage] = useState("")
+  const [sharedStockBySize, setSharedStockBySize] = useState<SizeStock | null>(null)
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -146,6 +166,22 @@ export default function ProductPage() {
     fetchProduct()
   }, [slug])
 
+  useEffect(() => {
+    const fetchSharedStock = async () => {
+      if (!product?.color) return
+
+      try {
+        const stock = await getSharedInventory(product.color)
+        setSharedStockBySize(stock || null)
+      } catch (error) {
+        console.error("SHARED INVENTORY FETCH ERROR:", error)
+        setSharedStockBySize(null)
+      }
+    }
+
+    fetchSharedStock()
+  }, [product?.color])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
@@ -174,11 +210,24 @@ export default function ProductPage() {
   }
 
   const saved = isInWishlist(product.id)
+  const inventoryProduct = sharedStockBySize
+    ? {
+        ...product,
+        stockBySize: sharedStockBySize,
+        stock: Object.values(sharedStockBySize).reduce(
+          (sum, value) => sum + Number(value || 0),
+          0
+        ),
+        inStock: Object.values(sharedStockBySize).some(
+          (value) => Number(value || 0) > 0
+        ),
+      }
+    : product
+  const totalStock = getTotalStock(inventoryProduct)
   const lowStock =
-    product.inStock &&
-    typeof product.stock === "number" &&
-    product.stock > 0 &&
-    product.stock <= 5
+    inventoryProduct.inStock &&
+    totalStock > 0 &&
+    totalStock <= 5
   const displayMrp = getDisplayMrp(product)
   const discountPercent = displayMrp
     ? Math.round(((displayMrp - product.price) / displayMrp) * 100)
@@ -203,6 +252,18 @@ export default function ProductPage() {
   const handleAddToCart = () => {
     if (!selectedSize) return
 
+    const availableStock = getSizeStock(inventoryProduct, selectedSize)
+
+    if (availableStock <= 0) {
+      alert("Selected size is sold out.")
+      return
+    }
+
+    if (quantity > availableStock) {
+      alert(`Only ${availableStock} piece${availableStock === 1 ? "" : "s"} left in size ${selectedSize}.`)
+      return
+    }
+
     for (let i = 0; i < quantity; i++) {
       addItem({
         id: product.id,
@@ -211,6 +272,7 @@ export default function ProductPage() {
         price: product.price,
         image: product.image,
         size: selectedSize,
+        color: product.color,
       })
     }
 
@@ -343,7 +405,8 @@ export default function ProductPage() {
   }
 
   const increaseQuantity = () => {
-    if (quantity < 10) setQuantity(quantity + 1)
+    const maxStock = selectedSize ? getSizeStock(inventoryProduct, selectedSize) : 10
+    if (quantity < Math.min(10, maxStock)) setQuantity(quantity + 1)
   }
 
   return (
@@ -499,20 +562,39 @@ export default function ProductPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`min-w-[60px] h-12 px-6 border text-sm font-medium transition-all ${
-                        selectedSize === size
-                          ? "border-accent bg-accent text-background"
-                          : "border-border hover:border-foreground"
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
+                  {product.sizes.map((size) => {
+                    const availableStock = getSizeStock(inventoryProduct, size)
+                    const soldOut = availableStock <= 0
+
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => {
+                          if (!soldOut) setSelectedSize(size)
+                        }}
+                        disabled={soldOut}
+                        className={`relative min-w-[60px] h-12 px-6 border text-sm font-medium transition-all ${
+                          soldOut
+                            ? "border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                            : selectedSize === size
+                            ? "border-accent bg-accent text-background"
+                            : "border-border hover:border-foreground"
+                        }`}
+                      >
+                        {size}
+                        {soldOut && (
+                          <span className="absolute left-2 right-2 top-1/2 h-px -translate-y-1/2 bg-muted-foreground" />
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
+
+                {selectedSize && getSizeStock(inventoryProduct, selectedSize) <= 5 && (
+                  <p className="text-sm text-yellow-400 mt-2">
+                    Only {getSizeStock(inventoryProduct, selectedSize)} left in size {selectedSize}
+                  </p>
+                )}
 
                 {!selectedSize && (
                   <p className="text-sm text-red-500 mt-2">
@@ -521,7 +603,7 @@ export default function ProductPage() {
                 )}
               </div>
 
-              {product.inStock ? (
+              {inventoryProduct.inStock ? (
                 <>
                   <div className="mb-8">
                     <span className="text-sm font-medium block mb-3">
@@ -544,7 +626,10 @@ export default function ProductPage() {
                       <button
                         onClick={increaseQuantity}
                         className="w-12 h-12 flex items-center justify-center hover:bg-muted transition-colors"
-                        disabled={quantity >= 10}
+                        disabled={
+                          quantity >=
+                          Math.min(10, selectedSize ? getSizeStock(inventoryProduct, selectedSize) : 10)
+                        }
                       >
                         <Plus className="w-4 h-4" />
                       </button>
