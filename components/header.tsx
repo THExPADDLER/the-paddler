@@ -258,6 +258,16 @@ export function Header() {
                   Shop
                 </Link>
 
+                <Link href="/wishlist" onClick={closeAll} className="flex items-center justify-between text-sm font-bold hover:text-muted-foreground">
+                  <span>Wishlist</span>
+
+                  {totalWishlistItems > 0 && (
+                    <span className="min-w-5 h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                      {totalWishlistItems}
+                    </span>
+                  )}
+                </Link>
+
                 <Link href="/instagram" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
                   Instagram
                 </Link>

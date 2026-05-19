@@ -16,6 +16,7 @@ export interface Product {
   details: string[]
   care: string[]
   inStock: boolean
+  stock?: number
 }
 
 export const products: Product[] = [

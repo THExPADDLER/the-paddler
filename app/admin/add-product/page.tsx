@@ -2,12 +2,30 @@
 
 import { useState } from "react"
 import { doc, setDoc } from "firebase/firestore"
-import { Save } from "lucide-react"
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
+import { ImagePlus, Save, X } from "lucide-react"
 
-import { db } from "@/lib/firebase"
+import { db, storage } from "@/lib/firebase"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
+
+type BadgeOption = "new-arrival" | "bestseller" | "none"
+
+const badgeOptions: Record<BadgeOption, { label: string | null; color: string | null }> = {
+  "new-arrival": {
+    label: "NEW ARRIVAL",
+    color: "bg-foreground text-background",
+  },
+  bestseller: {
+    label: "BESTSELLER",
+    color: "bg-accent text-background",
+  },
+  none: {
+    label: null,
+    color: null,
+  },
+}
 
 export default function AddProductPage() {
   const [name, setName] = useState("")
@@ -15,8 +33,11 @@ export default function AddProductPage() {
   const [mrp, setMrp] = useState("")
   const [price, setPrice] = useState("")
   const [image, setImage] = useState("")
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState("")
   const [color, setColor] = useState("")
   const [colorHex, setColorHex] = useState("#000000")
+  const [badge, setBadge] = useState<BadgeOption>("new-arrival")
   const [description, setDescription] = useState("")
   const [longDescription, setLongDescription] = useState("")
   const [stock, setStock] = useState("20")
@@ -43,6 +64,38 @@ export default function AddProductPage() {
     setSlug(createSlug(value))
   }
 
+  const handleImageSelect = (file: File | null) => {
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file.")
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be smaller than 5MB.")
+      return
+    }
+
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+    }
+
+    setImageFile(file)
+    setImage("")
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  const clearImage = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+    }
+
+    setImageFile(null)
+    setImage("")
+    setImagePreview("")
+  }
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -54,6 +107,28 @@ export default function AddProductPage() {
     setLoading(true)
 
     try {
+      const selectedBadge = badgeOptions[badge]
+      let imageUrl = image
+
+      if (imageFile) {
+        const extension = imageFile.name.split(".").pop()?.toLowerCase() || "jpg"
+        const imageRef = ref(
+          storage,
+          `products/${slug || createSlug(name)}-${Date.now()}.${extension}`
+        )
+
+        await uploadBytes(imageRef, imageFile, {
+          contentType: imageFile.type,
+        })
+
+        imageUrl = await getDownloadURL(imageRef)
+      }
+
+      if (!imageUrl) {
+        alert("Please upload a product image.")
+        return
+      }
+
       await setDoc(doc(db, "products", slug), {
         id: Date.now(),
         slug,
@@ -65,13 +140,10 @@ export default function AddProductPage() {
         price: priceNumber,
         discountPercent,
 
-        image,
-        images: [image],
-        badge: discountPercent > 0 ? `${discountPercent}% OFF` : "NEW ARRIVAL",
-        badgeColor:
-          discountPercent > 0
-            ? "bg-green-600 text-white"
-            : "bg-foreground text-background",
+        image: imageUrl,
+        images: [imageUrl],
+        badge: selectedBadge.label,
+        badgeColor: selectedBadge.color,
         sizes: ["S", "M", "L"],
         color,
         colorHex,
@@ -98,9 +170,10 @@ export default function AddProductPage() {
       setSlug("")
       setMrp("")
       setPrice("")
-      setImage("")
+      clearImage()
       setColor("")
       setColorHex("#000000")
+      setBadge("new-arrival")
       setDescription("")
       setLongDescription("")
       setStock("20")
@@ -189,13 +262,68 @@ export default function AddProductPage() {
                 </div>
               </div>
 
-              <input
-                placeholder="Image path e.g. /images/products/new-tee.jpg"
-                className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                required
-              />
+              <div className="border border-border bg-background p-5">
+                <p className="text-xs tracking-[0.3em] text-muted-foreground mb-4">
+                  PRODUCT IMAGE
+                </p>
+
+                {imagePreview || image ? (
+                  <div className="flex flex-col sm:flex-row gap-5 sm:items-center">
+                    <div className="relative h-52 w-40 overflow-hidden bg-neutral-900 border border-border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imagePreview || image}
+                        alt="Product preview"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Image selected. Upload another file if you want to replace it before saving.
+                      </p>
+
+                      <div className="flex flex-wrap gap-3">
+                        <label className="cursor-pointer border border-border px-5 py-3 text-sm font-black hover:bg-secondary">
+                          CHANGE IMAGE
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => handleImageSelect(event.target.files?.[0] || null)}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={clearImage}
+                          className="border border-border px-5 py-3 text-sm font-black text-red-400 hover:bg-secondary flex items-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          REMOVE
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center border border-dashed border-border bg-secondary/20 px-5 py-8 text-center hover:bg-secondary/40">
+                    <ImagePlus className="mb-4 h-10 w-10 text-muted-foreground" />
+                    <span className="text-sm font-black text-foreground">
+                      UPLOAD PRODUCT IMAGE
+                    </span>
+                    <span className="mt-2 text-sm text-muted-foreground">
+                      JPG, PNG or WebP under 5MB
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      required={!image}
+                      onChange={(event) => handleImageSelect(event.target.files?.[0] || null)}
+                    />
+                  </label>
+                )}
+              </div>
 
               <div className="grid sm:grid-cols-2 gap-5">
                 <input
@@ -213,6 +341,16 @@ export default function AddProductPage() {
                   onChange={(e) => setColorHex(e.target.value)}
                 />
               </div>
+
+              <select
+                value={badge}
+                onChange={(event) => setBadge(event.target.value as BadgeOption)}
+                className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
+              >
+                <option value="new-arrival">Badge: New Arrival</option>
+                <option value="bestseller">Badge: Best Seller</option>
+                <option value="none">Badge: No Badge</option>
+              </select>
 
               <input
                 placeholder="Short Description e.g. OVERSIZED FIT"

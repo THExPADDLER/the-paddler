@@ -7,12 +7,12 @@ import {
   Users,
   IndianRupee,
   TicketPercent,
-  Bell,
   ShoppingBag,
   RotateCcw,
   ImageIcon,
+  Star,
 } from "lucide-react"
-import { collection, getDocs } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -26,7 +26,6 @@ type DashboardStats = {
   products: number
   users: number
   couponsUsed: number
-  notifyRequests: number
 }
 
 type OrderRecord = {
@@ -47,7 +46,6 @@ const emptyStats: DashboardStats = {
   products: localProducts.length,
   users: 0,
   couponsUsed: 0,
-  notifyRequests: 0,
 }
 
 const formatCurrency = (value: number) =>
@@ -108,28 +106,29 @@ const links = [
     icon: ImageIcon,
   },
   {
-    title: "Notify Requests",
-    href: "/admin/notify",
-    desc: "See which sold-out products customers want back.",
-    icon: Bell,
+    title: "Featured Products",
+    href: "/admin/featured-products",
+    desc: "Choose which products appear on the landing page.",
+    icon: Star,
   },
 ]
 
 export default function AdminPage() {
   const [stats, setStats] = useState<DashboardStats>(emptyStats)
   const [loadingStats, setLoadingStats] = useState(true)
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
+  const [savingMaintenance, setSavingMaintenance] = useState(false)
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         setLoadingStats(true)
 
-        const [ordersResult, productsResult, usersResult, notifyResult] =
+        const [ordersResult, productsResult, usersResult] =
           await Promise.allSettled([
             getDocs(collection(db, "orders")),
             getDocs(collection(db, "products")),
             getDocs(collection(db, "users")),
-            getDocs(collection(db, "notifyRequests")),
           ])
 
         const orders =
@@ -157,8 +156,6 @@ export default function AdminPage() {
           users: usersFromCollection || uniqueOrderUsers,
           couponsUsed: orders.filter((order) => order.pricing?.couponCode)
             .length,
-          notifyRequests:
-            notifyResult.status === "fulfilled" ? notifyResult.value.size : 0,
         })
       } catch (error) {
         console.error("ADMIN DASHBOARD STATS ERROR:", error)
@@ -169,6 +166,51 @@ export default function AdminPage() {
 
     fetchStats()
   }, [])
+
+  useEffect(() => {
+    const fetchMaintenanceMode = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, "siteSettings", "maintenance"))
+        setMaintenanceEnabled(snapshot.exists() && snapshot.data().enabled === true)
+      } catch (error) {
+        console.error("MAINTENANCE MODE FETCH ERROR:", error)
+      }
+    }
+
+    fetchMaintenanceMode()
+  }, [])
+
+  const toggleMaintenanceMode = async () => {
+    const nextEnabled = !maintenanceEnabled
+    const confirmed = window.confirm(
+      nextEnabled
+        ? "Take the live website down for maintenance? Customers will see the maintenance page."
+        : "Make the live website available to customers again?"
+    )
+
+    if (!confirmed) return
+
+    setSavingMaintenance(true)
+
+    try {
+      await setDoc(
+        doc(db, "siteSettings", "maintenance"),
+        {
+          enabled: nextEnabled,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      )
+
+      setMaintenanceEnabled(nextEnabled)
+      alert(nextEnabled ? "Site is now in maintenance mode." : "Site is live again.")
+    } catch (error) {
+      console.error("MAINTENANCE MODE SAVE ERROR:", error)
+      alert("Unable to update maintenance mode.")
+    } finally {
+      setSavingMaintenance(false)
+    }
+  }
 
   const statCards = useMemo(
     () => [
@@ -202,12 +244,6 @@ export default function AdminPage() {
         icon: TicketPercent,
         href: "/admin/coupons",
       },
-      {
-        title: "Notify Requests",
-        value: stats.notifyRequests.toLocaleString("en-IN"),
-        icon: Bell,
-        href: "/admin/notify",
-      },
     ],
     [stats]
   )
@@ -223,9 +259,28 @@ export default function AdminPage() {
               THE PADDLER CONTROL ROOM
             </p>
 
-            <h1 className="text-4xl sm:text-5xl font-black mb-10">
-              ADMIN PANEL
-            </h1>
+            <div className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <h1 className="text-4xl sm:text-5xl font-black">
+                ADMIN PANEL
+              </h1>
+
+              <button
+                type="button"
+                onClick={toggleMaintenanceMode}
+                disabled={savingMaintenance}
+                className={`px-6 py-3 text-sm font-black transition-colors disabled:opacity-60 ${
+                  maintenanceEnabled
+                    ? "bg-green-400 text-black hover:bg-green-300"
+                    : "bg-red-500 text-white hover:bg-red-400"
+                }`}
+              >
+                {savingMaintenance
+                  ? "UPDATING..."
+                  : maintenanceEnabled
+                  ? "MAKE SITE LIVE"
+                  : "TAKE SITE DOWN"}
+              </button>
+            </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
               {statCards.map((item) => {

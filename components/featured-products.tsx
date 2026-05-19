@@ -1,15 +1,66 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Heart } from "lucide-react"
+import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore"
 
-import { products } from "@/lib/products"
+import { db } from "@/lib/firebase"
+import { products, type Product } from "@/lib/products"
 import { useWishlist } from "@/lib/wishlist-context"
 
+const normalizeProduct = (product: Product): Product => {
+  const fallbackMrp = product.mrp || 1999
+
+  return {
+    ...product,
+    images: product.images?.length ? product.images : [product.image],
+    mrp: fallbackMrp > product.price ? fallbackMrp : undefined,
+    inStock:
+      typeof product.stock === "number" ? product.stock > 0 : product.inStock,
+  }
+}
+
 export function FeaturedProducts() {
-  const featuredProducts = products.slice(0, 4)
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>(
+    products.slice(0, 4).map(normalizeProduct)
+  )
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        const featuredSnap = await getDoc(doc(db, "siteContent", "featuredProducts"))
+        const selectedSlugs = featuredSnap.exists()
+          ? ((featuredSnap.data().slugs || []) as string[])
+          : []
+
+        const productsQuery = query(
+          collection(db, "products"),
+          orderBy("createdAt", "desc")
+        )
+        const snapshot = await getDocs(productsQuery)
+
+        if (!snapshot.empty) {
+          const firestoreProducts = snapshot.docs.map((item) =>
+            normalizeProduct(item.data() as Product)
+          )
+          const selectedProducts = selectedSlugs
+            .map((slug) => firestoreProducts.find((product) => product.slug === slug))
+            .filter(Boolean) as Product[]
+
+          setFeaturedProducts(
+            (selectedProducts.length ? selectedProducts : firestoreProducts).slice(0, 4)
+          )
+        }
+      } catch (error) {
+        console.error("FEATURED PRODUCTS FETCH ERROR:", error)
+      }
+    }
+
+    fetchFeaturedProducts()
+  }, [])
 
   return (
     <section id="shop" className="py-16 sm:py-24 bg-foreground text-background">
@@ -29,11 +80,20 @@ export function FeaturedProducts() {
           {featuredProducts.map((product) => {
             const saved = isInWishlist(product.id)
             const hoverImage = product.images?.[1] || product.image
+            const lowStock =
+              product.inStock &&
+              typeof product.stock === "number" &&
+              product.stock > 0 &&
+              product.stock <= 5
 
             return (
               <div key={product.id} className="group relative">
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+
                     if (saved) {
                       removeFromWishlist(product.id)
                     } else {
@@ -49,11 +109,11 @@ export function FeaturedProducts() {
                     }
                   }}
                   className="absolute top-3 right-3 z-20 w-10 h-10 rounded-full bg-background/90 backdrop-blur flex items-center justify-center hover:scale-110 transition-transform"
-                  aria-label="Wishlist"
+                  aria-label={saved ? "Remove from wishlist" : "Add to wishlist"}
                 >
                   <Heart
                     className={`w-5 h-5 transition-colors ${
-                      saved ? "fill-red-500 text-red-500" : "text-black"
+                      saved ? "fill-red-500 text-red-500" : "text-white"
                     }`}
                   />
                 </button>
@@ -79,6 +139,12 @@ export function FeaturedProducts() {
                     {product.badge && (
                       <span className={`absolute top-3 left-3 px-2 py-1 text-xs font-medium ${product.badgeColor}`}>
                         {product.badge}
+                      </span>
+                    )}
+
+                    {lowStock && (
+                      <span className="absolute bottom-3 left-3 bg-background text-red-500 px-3 py-1 text-xs font-black">
+                        ONLY FEW DROPS LEFT
                       </span>
                     )}
                   </div>

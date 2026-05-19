@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "./providers/AuthProvider"
+import { MaintenanceGate } from "@/components/maintenance-gate"
 import { WhatsAppButton } from "@/components/whatsapp-button"
 
 
@@ -51,6 +52,7 @@ export default function RootLayout({
         <WishlistProvider>
           <CartProvider>
             <AuthProvider>
+              <MaintenanceGate />
               {children}
             </AuthProvider>
           </CartProvider>

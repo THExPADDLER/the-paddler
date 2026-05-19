@@ -185,6 +185,11 @@ export default function ShopPage() {
               {filteredProducts.map((product) => {
                 const saved = isInWishlist(product.id)
                 const hoverImage = product.images?.[1] || product.image
+                const lowStock =
+                  product.inStock &&
+                  typeof product.stock === "number" &&
+                  product.stock > 0 &&
+                  product.stock <= 5
 
                 return (
                   <div key={product.id} className="group relative">
@@ -244,6 +249,12 @@ export default function ShopPage() {
                             SOLD OUT
                           </span>
                         )}
+
+                        {lowStock && (
+                          <span className="absolute bottom-3 left-3 bg-background text-red-500 px-3 py-1 text-xs font-black">
+                            ONLY FEW DROPS LEFT
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-4 flex items-start justify-between gap-4">
@@ -255,6 +266,12 @@ export default function ShopPage() {
                           <p className="text-xs text-muted-foreground mt-1">
                             {product.color} / {product.description}
                           </p>
+
+                          {lowStock && (
+                            <p className="mt-2 text-xs font-black text-red-400">
+                              Only few drops left
+                            </p>
+                          )}
                         </div>
 
                         <div className="text-right whitespace-nowrap">

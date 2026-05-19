@@ -174,7 +174,11 @@ export default function ProductPage() {
   }
 
   const saved = isInWishlist(product.id)
-  const lowStock = product.inStock && product.id % 3 === 0
+  const lowStock =
+    product.inStock &&
+    typeof product.stock === "number" &&
+    product.stock > 0 &&
+    product.stock <= 5
   const displayMrp = getDisplayMrp(product)
 
   const handleWishlist = () => {
@@ -413,7 +417,7 @@ export default function ProductPage() {
 
                 {lowStock && (
                   <p className="mt-3 text-sm font-bold text-yellow-400">
-                    Only few pieces left. This drop may sell out soon.
+                    Only few drops left. This drop may sell out soon.
                   </p>
                 )}
               </div>
