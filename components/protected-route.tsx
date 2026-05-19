@@ -11,7 +11,7 @@ type ProtectedRouteProps = {
   adminOnly?: boolean
 }
 
-const ADMIN_EMAIL = "vp982761@gmail.com"
+const ADMIN_EMAILS = ["vp982761@gmail.com", "thexpaddler@gmail.com"]
 
 export function ProtectedRoute({
   children,
@@ -38,11 +38,11 @@ export function ProtectedRoute({
           uid: firebaseUser.uid,
           name: firebaseUser.displayName || "Customer",
           email,
-          role: email === ADMIN_EMAIL ? "admin" : "customer",
+          role: ADMIN_EMAILS.includes(email) ? "admin" : "customer",
         })
       )
 
-      if (adminOnly && email !== ADMIN_EMAIL) {
+      if (adminOnly && !ADMIN_EMAILS.includes(email)) {
         router.push("/")
         setChecking(false)
         return
