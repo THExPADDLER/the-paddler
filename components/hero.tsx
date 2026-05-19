@@ -78,13 +78,6 @@ export function Hero() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
 
-              <Link
-                href="/archive"
-                className="inline-flex items-center border border-white/20 bg-black/30 backdrop-blur px-8 py-4 text-sm font-black tracking-wide hover:bg-white hover:text-black transition-all duration-300"
-              >
-                VIEW ARCHIVE
-              </Link>
-
             </div>
 
             {/* Bottom Stats */}

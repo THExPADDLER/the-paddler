@@ -270,10 +270,6 @@ export function Header() {
                   FAQ
                 </Link>
 
-                <Link href="/archive" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Archive
-                </Link>
-
                 <Link href="/influencers" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
                   Influencers
                 </Link>
