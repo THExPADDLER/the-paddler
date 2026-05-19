@@ -60,6 +60,20 @@ const getStatusColor = (status: string) => {
   return "text-yellow-400"
 }
 
+const isOrderShipped = (order: CustomerOrder) => {
+  return Boolean(
+    order.shipment?.awb ||
+      order.shipment?.shipmentId ||
+      ["shipped", "in_transit", "delivered"].includes(order.status)
+  )
+}
+
+const getConnectorFill = (currentComplete: boolean, nextComplete: boolean) => {
+  if (nextComplete) return "h-full"
+  if (currentComplete) return "h-1/2"
+  return "h-0"
+}
+
 export default function OrdersPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
@@ -355,6 +369,53 @@ export default function OrdersPage() {
                     year: "numeric",
                   }
                 )
+                const paymentStatus = order.payment?.status || "pending"
+                const paymentComplete = paymentStatus === "success"
+                const paymentFailed = paymentStatus === "failed"
+                const shipped = isOrderShipped(order)
+                const delivered = order.status === "delivered"
+                const timelineSteps = [
+                  {
+                    title: "Order Placed",
+                    message: "Your order has been placed.",
+                    complete: true,
+                    failed: false,
+                    icon: CheckCircle2,
+                  },
+                  {
+                    title: paymentComplete
+                      ? "Payment Successful"
+                      : paymentFailed
+                      ? "Payment Failed"
+                      : "Payment Pending",
+                    message: paymentComplete
+                      ? "Payment has been confirmed by PhonePe."
+                      : paymentFailed
+                      ? "Payment failed. Please contact support or try again."
+                      : "Waiting for PhonePe confirmation.",
+                    complete: paymentComplete,
+                    failed: paymentFailed,
+                    icon: paymentComplete ? CheckCircle2 : Clock3,
+                  },
+                  {
+                    title: shipped ? "Shipped" : "Shipment Pending",
+                    message: order.shipment?.awb
+                      ? `AWB: ${order.shipment.awb}`
+                      : "Awaiting shipment creation.",
+                    complete: shipped,
+                    failed: false,
+                    icon: Truck,
+                  },
+                  {
+                    title: delivered ? "Delivered" : "Delivery Pending",
+                    message: delivered
+                      ? "Your order has been delivered."
+                      : "Awaiting dispatch.",
+                    complete: delivered,
+                    failed: false,
+                    icon: Package,
+                  },
+                ]
 
                 return (
                   <div
@@ -431,73 +492,79 @@ export default function OrdersPage() {
                         <div className="lg:w-[420px]">
                           <h3 className="font-bold mb-6">TRACK ORDER</h3>
 
-                          <div className="space-y-6">
-                            <div className="flex gap-4">
-                              <div className="flex flex-col items-center">
-                                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                <div className="w-px h-10 bg-border mt-2" />
-                              </div>
+                          <div className="space-y-0">
+                            {timelineSteps.map((step, index) => {
+                              const Icon = step.icon
+                              const nextStep = timelineSteps[index + 1]
+                              const isLast = index === timelineSteps.length - 1
+                              const isWaiting =
+                                !step.complete &&
+                                !step.failed &&
+                                timelineSteps
+                                  .slice(0, index)
+                                  .every((item) => item.complete)
 
-                              <div>
-                                <p className="font-medium">Order Placed</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Your order has been placed.
-                                </p>
-                              </div>
-                            </div>
+                              return (
+                                <div
+                                  key={step.title}
+                                  className="grid grid-cols-[34px_1fr] gap-4"
+                                >
+                                  <div className="flex flex-col items-center">
+                                    <div
+                                      className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-700 ${
+                                        step.failed
+                                          ? "border-red-400 bg-red-500/10 text-red-400"
+                                          : step.complete
+                                          ? "border-green-400 bg-green-500/15 text-green-400 shadow-[0_0_18px_rgba(34,197,94,0.35)] animate-timeline-pop"
+                                          : isWaiting
+                                          ? "border-yellow-400 bg-yellow-400/10 text-yellow-400 animate-timeline-wait"
+                                          : "border-border bg-background text-muted-foreground"
+                                      }`}
+                                    >
+                                      <Icon className="h-4 w-4" />
+                                    </div>
 
-                            <div className="flex gap-4">
-                              <div className="flex flex-col items-center">
-                                <Clock3 className="w-5 h-5 text-yellow-400" />
-                                <div className="w-px h-10 bg-border mt-2" />
-                              </div>
+                                    {!isLast && (
+                                      <div className="relative my-2 h-14 w-px overflow-hidden bg-border">
+                                        <div
+                                          className={`absolute left-0 top-0 w-px bg-green-400 shadow-[0_0_12px_rgba(34,197,94,0.7)] transition-all duration-1000 ease-out ${getConnectorFill(
+                                            step.complete,
+                                            Boolean(nextStep?.complete)
+                                          )}`}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
 
-                              <div>
-                                <p className={`font-medium ${getStatusColor(order.payment?.status || "pending")}`}>
-                                  {order.payment?.status === "success"
-                                    ? "Payment Successful"
-                                    : order.payment?.status === "failed"
-                                    ? "Payment Failed"
-                                    : "Payment Pending"}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {order.payment?.status === "success"
-                                    ? "Payment has been confirmed by PhonePe."
-                                    : order.payment?.status === "failed"
-                                    ? "Payment failed. Please contact support or try again."
-                                    : "Waiting for PhonePe confirmation."}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-4 opacity-40">
-                              <div className="flex flex-col items-center">
-                                <Truck className="w-5 h-5" />
-                                <div className="w-px h-10 bg-border mt-2" />
-                              </div>
-
-                              <div>
-                                <p className="font-medium">Shipped</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {order.shipment?.awb
-                                    ? `AWB: ${order.shipment.awb}`
-                                    : "Awaiting shipment creation."}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-4 opacity-40">
-                              <div className="flex flex-col items-center">
-                                <Package className="w-5 h-5" />
-                              </div>
-
-                              <div>
-                                <p className="font-medium">Delivered</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Awaiting dispatch.
-                                </p>
-                              </div>
-                            </div>
+                                  <div
+                                    className={`pb-6 transition-all duration-500 ${
+                                      step.complete
+                                        ? "opacity-100 translate-x-0"
+                                        : isWaiting
+                                        ? "opacity-100 translate-x-0"
+                                        : "opacity-45"
+                                    }`}
+                                  >
+                                    <p
+                                      className={`font-medium ${
+                                        step.failed
+                                          ? "text-red-400"
+                                          : step.complete
+                                          ? "text-green-400"
+                                          : isWaiting
+                                          ? "text-yellow-400"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {step.title}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {step.message}
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
 
                           <div className="flex flex-wrap gap-3 mt-8">

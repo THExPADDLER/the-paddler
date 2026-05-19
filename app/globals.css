@@ -124,6 +124,41 @@ html {
   animation: marquee 18s linear infinite;
 }
 
+/* ===== ORDER TIMELINE ===== */
+
+@keyframes timeline-pop {
+  0% {
+    transform: scale(0.75);
+  }
+
+  55% {
+    transform: scale(1.14);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes timeline-wait {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(250, 204, 21, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 18px rgba(250, 204, 21, 0.35);
+  }
+}
+
+.animate-timeline-pop {
+  animation: timeline-pop 520ms ease-out both;
+}
+
+.animate-timeline-wait {
+  animation: timeline-wait 1.8s ease-in-out infinite;
+}
+
 /* ===== SELECTION ===== */
 
 ::selection {
