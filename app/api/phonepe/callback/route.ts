@@ -29,11 +29,17 @@ const parseBasicAuth = (header: string | null) => {
 }
 
 const isWebhookAuthorized = (request: Request) => {
+  const authRequired = process.env.PHONEPE_WEBHOOK_AUTH_REQUIRED === "true"
   const expected = getWebhookCredentials()
 
-  if (!expected.username || !expected.password) {
-    console.warn("PHONEPE WEBHOOK AUTH SKIPPED: credentials not configured.")
+  if (!authRequired) {
+    console.warn("PHONEPE WEBHOOK AUTH RELAXED: accepting webhook in test mode.")
     return true
+  }
+
+  if (!expected.username || !expected.password) {
+    console.error("PHONEPE WEBHOOK AUTH ERROR: credentials not configured.")
+    return false
   }
 
   const received = parseBasicAuth(request.headers.get("authorization"))
