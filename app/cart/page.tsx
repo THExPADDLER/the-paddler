@@ -1,26 +1,113 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Minus, Plus, X, ArrowLeft, ShoppingBag } from "lucide-react"
+import { Minus, Plus, X, ArrowLeft, ShoppingBag, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { doc, getDoc } from "firebase/firestore"
 
 import { useCart } from "@/lib/cart-context"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "@/app/providers/AuthProvider"
+import { db } from "@/lib/firebase"
+import { createInventoryKey, emptySizeStock, type SizeStock } from "@/lib/inventory"
+
+type CartStockIssue = {
+  itemKey: string
+  message: string
+  available: number
+}
 
 export default function CartPage() {
   const router = useRouter()
 
   const { items, removeItem, updateQuantity, totalPrice } = useCart()
   const { user, loading } = useAuth()
+  const [stockByColor, setStockByColor] = useState<Record<string, SizeStock>>({})
+  const [checkingStock, setCheckingStock] = useState(true)
 
   const shipping = 0
   const total = totalPrice + shipping
+  const cartIssues = useMemo(() => {
+    return items.reduce<CartStockIssue[]>((issues, item) => {
+      const color = item.color || item.description.split("/")[0]?.trim()
+      const colorKey = createInventoryKey(color)
+      const available = Number(stockByColor[colorKey]?.[item.size] || 0)
+
+      if (available <= 0) {
+        issues.push({
+          itemKey: `${item.id}-${item.size}`,
+          available,
+          message: `${color} / ${item.size} is now sold out.`,
+        })
+      } else if (item.quantity > available) {
+        issues.push({
+          itemKey: `${item.id}-${item.size}`,
+          available,
+          message: `Only ${available} piece${available === 1 ? "" : "s"} left in ${color} / ${item.size}.`,
+        })
+      }
+
+      return issues
+    }, [])
+  }, [items, stockByColor])
+  const hasBlockingStockIssue = cartIssues.length > 0
+
+  useEffect(() => {
+    const fetchCartStock = async () => {
+      if (items.length === 0) {
+        setCheckingStock(false)
+        return
+      }
+
+      setCheckingStock(true)
+
+      try {
+        const colorKeys = Array.from(
+          new Set(
+            items
+              .map((item) => item.color || item.description.split("/")[0]?.trim())
+              .map(createInventoryKey)
+              .filter(Boolean)
+          )
+        )
+
+        const entries = await Promise.all(
+          colorKeys.map(async (key) => {
+            const snapshot = await getDoc(doc(db, "inventory", key))
+            const stock = snapshot.exists()
+              ? ({ ...emptySizeStock, ...snapshot.data().stockBySize } as SizeStock)
+              : { ...emptySizeStock }
+
+            return [key, stock] as const
+          })
+        )
+
+        setStockByColor(Object.fromEntries(entries))
+      } catch (error) {
+        console.error("CART STOCK CHECK ERROR:", error)
+      } finally {
+        setCheckingStock(false)
+      }
+    }
+
+    fetchCartStock()
+  }, [items])
 
   const handleProceedToCheckout = () => {
     if (loading) return
+
+    if (checkingStock) {
+      alert("Checking stock. Please wait a moment.")
+      return
+    }
+
+    if (hasBlockingStockIssue) {
+      alert("Please fix the stock issues in your cart before checkout.")
+      return
+    }
 
     if (!user) {
       router.push("/login?redirect=/checkout")
@@ -94,11 +181,18 @@ export default function CartPage() {
               </h1>
 
               <div className="space-y-6">
-                {items.map((item) => (
-                  <div
-                    key={`${item.id}-${item.size}`}
-                    className="flex gap-4 sm:gap-6 p-4 bg-secondary/30 border border-border"
-                  >
+                {items.map((item) => {
+                  const issue = cartIssues.find(
+                    (current) => current.itemKey === `${item.id}-${item.size}`
+                  )
+
+                  return (
+                    <div
+                      key={`${item.id}-${item.size}`}
+                      className={`flex gap-4 sm:gap-6 p-4 bg-secondary/30 border ${
+                        issue ? "border-red-500" : "border-border"
+                      }`}
+                    >
 
                     {/* Product Image */}
                     <div className="relative w-24 h-24 sm:w-32 sm:h-32 bg-neutral-100 flex-shrink-0">
@@ -126,6 +220,13 @@ export default function CartPage() {
                           <p className="text-xs text-muted-foreground mt-1">
                             Size: {item.size}
                           </p>
+
+                          {issue && (
+                            <p className="mt-3 flex items-center gap-2 text-xs font-black text-red-400">
+                              <AlertTriangle className="w-4 h-4" />
+                              {issue.message}
+                            </p>
+                          )}
                         </div>
 
                         <button
@@ -168,7 +269,8 @@ export default function CartPage() {
                                 item.quantity + 1
                               )
                             }
-                            className="p-2 hover:bg-secondary transition-colors"
+                            disabled={!!issue && item.quantity >= issue.available}
+                            className="p-2 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             aria-label="Increase quantity"
                           >
                             <Plus className="w-3 h-3" />
@@ -184,7 +286,8 @@ export default function CartPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Continue Shopping */}
@@ -239,10 +342,17 @@ export default function CartPage() {
 
                 <button
                   onClick={handleProceedToCheckout}
-                  className="w-full mt-6 bg-foreground text-background py-4 text-sm font-medium hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2"
+                  disabled={checkingStock || hasBlockingStockIssue}
+                  className="w-full mt-6 bg-foreground text-background py-4 text-sm font-medium hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  PROCEED TO CHECKOUT
+                  {checkingStock ? "CHECKING STOCK..." : "PROCEED TO CHECKOUT"}
                 </button>
+
+                {hasBlockingStockIssue && (
+                  <p className="mt-4 text-center text-xs font-black text-red-400">
+                    Update or remove unavailable items before checkout.
+                  </p>
+                )}
 
                 <p className="text-xs text-muted-foreground text-center mt-4">
                   Taxes calculated at checkout
