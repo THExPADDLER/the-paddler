@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -68,6 +68,7 @@ export default function OrdersPage() {
   const [returningOrderId, setReturningOrderId] = useState<string | null>(null)
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState<string | null>(null)
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
+  const autoCheckedPayments = useRef<Set<string>>(new Set())
 
   const fetchOrders = async () => {
     if (loading) return
@@ -106,6 +107,35 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders()
   }, [loading, user])
+
+  useEffect(() => {
+    const pendingPhonePeOrders = orders.filter(
+      (order) =>
+        order.payment?.gateway === "phonepe" &&
+        order.payment?.status !== "success" &&
+        order.payment?.status !== "failed" &&
+        !autoCheckedPayments.current.has(order.id)
+    )
+
+    if (pendingPhonePeOrders.length === 0) return
+
+    pendingPhonePeOrders.slice(0, 3).forEach((order) => {
+      autoCheckedPayments.current.add(order.id)
+
+      fetch(`/api/phonepe/status?orderId=${encodeURIComponent(order.id)}`, {
+        cache: "no-store",
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data?.paymentStatus === "success" || data?.paymentStatus === "failed") {
+            fetchOrders()
+          }
+        })
+        .catch((error) => {
+          console.error("ORDER AUTO PAYMENT CHECK ERROR:", error)
+        })
+    })
+  }, [orders])
 
   const checkPaymentStatus = async (order: CustomerOrder) => {
     setCheckingPaymentOrderId(order.id)

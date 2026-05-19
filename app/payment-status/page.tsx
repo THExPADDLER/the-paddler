@@ -14,6 +14,8 @@ type PaymentResult = {
   paymentStatus?: string
   phonepeState?: string
   message?: string
+  shipmentError?: string | null
+  inventoryError?: string | null
 }
 
 const getTitle = (result: PaymentResult | null, loading: boolean) => {
@@ -47,6 +49,7 @@ const getMessage = (result: PaymentResult | null, loading: boolean) => {
 export default function PaymentStatusPage() {
   const [loading, setLoading] = useState(true)
   const [result, setResult] = useState<PaymentResult | null>(null)
+  const [attempt, setAttempt] = useState(1)
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -62,25 +65,50 @@ export default function PaymentStatusPage() {
         return
       }
 
-      try {
-        const response = await fetch(
-          `/api/phonepe/status?orderId=${encodeURIComponent(orderId)}`
-        )
-        const data = await response.json()
+      const maxAttempts = 8
 
-        setResult(data)
-      } catch (error) {
-        console.error("PAYMENT STATUS PAGE ERROR:", error)
-        setResult({
-          ok: false,
-          message: "Unable to check payment status.",
-        })
-      } finally {
-        setLoading(false)
+      for (let currentAttempt = 1; currentAttempt <= maxAttempts; currentAttempt += 1) {
+        setAttempt(currentAttempt)
+
+        try {
+          const response = await fetch(
+            `/api/phonepe/status?orderId=${encodeURIComponent(orderId)}&attempt=${currentAttempt}`,
+            { cache: "no-store" }
+          )
+          const data = await response.json()
+
+          setResult(data)
+
+          if (
+            data?.paymentStatus === "success" ||
+            data?.paymentStatus === "failed" ||
+            currentAttempt === maxAttempts
+          ) {
+            return
+          }
+        } catch (error) {
+          console.error("PAYMENT STATUS PAGE ERROR:", error)
+
+          if (currentAttempt === maxAttempts) {
+            setResult({
+              ok: false,
+              message: "Unable to check payment status.",
+            })
+            return
+          }
+        } finally {
+          if (currentAttempt === maxAttempts) {
+            setLoading(false)
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 3000))
       }
+
+      setLoading(false)
     }
 
-    checkStatus()
+    checkStatus().finally(() => setLoading(false))
   }, [])
 
   const title = getTitle(result, loading)
@@ -117,6 +145,21 @@ export default function PaymentStatusPage() {
             <p className="text-muted-foreground leading-relaxed max-w-xl mx-auto">
               {message}
             </p>
+
+            {loading && (
+              <p className="text-xs text-muted-foreground mt-4">
+                Attempt {attempt} of 8
+              </p>
+            )}
+
+            {result?.paymentStatus === "success" &&
+              (result.shipmentError || result.inventoryError) && (
+                <p className="text-sm text-yellow-400 mt-5">
+                  Payment is confirmed. Backend follow-up needs attention:
+                  {" "}
+                  {result.shipmentError || result.inventoryError}
+                </p>
+              )}
 
             {result?.orderId && (
               <p className="text-sm text-muted-foreground mt-6 break-all">

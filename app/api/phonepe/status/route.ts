@@ -79,7 +79,13 @@ async function getAccessToken() {
 const normalizePaymentState = (state: string) => {
   const upperState = state.toUpperCase()
 
-  if (upperState === "COMPLETED" || upperState === "SUCCESS") {
+  if (
+    upperState === "COMPLETED" ||
+    upperState === "SUCCESS" ||
+    upperState === "PAYMENT_SUCCESS" ||
+    upperState === "PAYMENT_COMPLETED" ||
+    upperState === "CAPTURED"
+  ) {
     return {
       orderStatus: "paid",
       paymentStatus: "success",
@@ -97,6 +103,51 @@ const normalizePaymentState = (state: string) => {
     orderStatus: "pending_payment",
     paymentStatus: "pending",
   }
+}
+
+const collectStatusValues = (value: unknown): string[] => {
+  if (!value || typeof value !== "object") return []
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectStatusValues(item))
+  }
+
+  const record = value as Record<string, unknown>
+  const current = [
+    record.state,
+    record.status,
+    record.paymentState,
+    record.transactionStatus,
+    record.code,
+  ].filter((item): item is string => typeof item === "string")
+
+  return [
+    ...current,
+    ...Object.values(record).flatMap((item) => collectStatusValues(item)),
+  ]
+}
+
+const pickPaymentState = (statusData: any) => {
+  const candidates = collectStatusValues(statusData)
+  const successState = candidates.find(
+    (item) => normalizePaymentState(item).paymentStatus === "success"
+  )
+
+  if (successState) return successState
+
+  const failedState = candidates.find(
+    (item) => normalizePaymentState(item).paymentStatus === "failed"
+  )
+
+  if (failedState) return failedState
+
+  return (
+    statusData?.state ||
+    statusData?.data?.state ||
+    statusData?.paymentDetails?.[0]?.state ||
+    statusData?.data?.paymentDetails?.[0]?.state ||
+    "PENDING"
+  )
 }
 
 export async function GET(request: Request) {
@@ -144,11 +195,7 @@ export async function GET(request: Request) {
       )
     }
 
-    const state =
-      statusData?.state ||
-      statusData?.data?.state ||
-      statusData?.paymentDetails?.[0]?.state ||
-      "PENDING"
+    const state = pickPaymentState(statusData)
     const { orderStatus, paymentStatus } = normalizePaymentState(String(state))
 
     await updateDoc(doc(db, "orders", orderId), {
