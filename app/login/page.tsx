@@ -58,6 +58,10 @@ export default function LoginPage() {
     return error?.message || "Google Login Failed";
   };
 
+  const isMobileBrowser = () =>
+    typeof navigator !== "undefined" &&
+    /mobile|android|iphone|ipad|ipod/i.test(navigator.userAgent);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -77,6 +81,11 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider();
 
+      if (isMobileBrowser()) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       const result = await signInWithPopup(auth, provider);
 
       console.log("Google login user:", result.user);
@@ -87,8 +96,7 @@ export default function LoginPage() {
 
       if (
         error?.code === "auth/popup-blocked" ||
-        error?.code === "auth/cancelled-popup-request" ||
-        /mobile|android|iphone|ipad/i.test(navigator.userAgent)
+        error?.code === "auth/cancelled-popup-request"
       ) {
         await signInWithRedirect(auth, new GoogleAuthProvider());
         return;

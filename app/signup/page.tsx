@@ -62,6 +62,10 @@ export default function SignupPage() {
     return error?.message || "Google Signup Failed";
   };
 
+  const isMobileBrowser = () =>
+    typeof navigator !== "undefined" &&
+    /mobile|android|iphone|ipad|ipod/i.test(navigator.userAgent);
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -94,6 +98,12 @@ export default function SignupPage() {
   const handleGoogleSignup = async () => {
     try {
       const provider = new GoogleAuthProvider();
+
+      if (isMobileBrowser()) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       const result = await signInWithPopup(auth, provider);
 
       console.log("Google signup user:", result.user);
@@ -108,8 +118,7 @@ export default function SignupPage() {
 
       if (
         error?.code === "auth/popup-blocked" ||
-        error?.code === "auth/cancelled-popup-request" ||
-        /mobile|android|iphone|ipad/i.test(navigator.userAgent)
+        error?.code === "auth/cancelled-popup-request"
       ) {
         await signInWithRedirect(auth, new GoogleAuthProvider());
         return;
