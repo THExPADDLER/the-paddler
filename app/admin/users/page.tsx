@@ -180,21 +180,14 @@ export default function AdminUsersPage() {
     [buyers]
   )
 
-  const signInOnlyUsers = useMemo(
+  const signedInUsers = useMemo(
     () =>
-      registeredUsers
-        .filter(
-          (user) =>
-            !buyerKeys.has(user.id) &&
-            !buyerKeys.has(user.uid || "") &&
-            !buyerKeys.has(user.email || "")
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.lastLoginAt || b.createdAt || 0).getTime() -
-            new Date(a.lastLoginAt || a.createdAt || 0).getTime()
-        ),
-    [buyerKeys, registeredUsers]
+      [...registeredUsers].sort(
+        (a, b) =>
+          new Date(b.lastLoginAt || b.createdAt || 0).getTime() -
+          new Date(a.lastLoginAt || a.createdAt || 0).getTime()
+      ),
+    [registeredUsers]
   )
 
   return (
@@ -221,7 +214,7 @@ export default function AdminUsersPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  SIGNED IN ({signInOnlyUsers.length})
+                  SIGNED IN ({signedInUsers.length})
                 </button>
                 <button
                   type="button"
@@ -261,12 +254,12 @@ export default function AdminUsersPage() {
               </div>
             ) : activeTab === "registered" ? (
               <div className="space-y-5">
-                {signInOnlyUsers.length === 0 ? (
+                {signedInUsers.length === 0 ? (
                   <div className="border border-border bg-secondary/20 p-6 text-muted-foreground">
-                    No sign-in-only users yet.
+                    No signed-in users yet.
                   </div>
                 ) : (
-                  signInOnlyUsers.map((user) => (
+                  signedInUsers.map((user) => (
                     <div
                       key={user.id}
                       className="border border-border bg-secondary/20 p-6"
@@ -295,6 +288,13 @@ export default function AdminUsersPage() {
                           <p className="text-xs text-muted-foreground mt-1">
                             {user.providerIds?.join(", ") || "Firebase Auth"}
                           </p>
+                          {(buyerKeys.has(user.id) ||
+                            buyerKeys.has(user.uid || "") ||
+                            buyerKeys.has(user.email || "")) && (
+                            <p className="mt-2 inline-block border border-green-700 px-2 py-1 text-xs font-black text-green-400">
+                              ORDERED CUSTOMER
+                            </p>
+                          )}
                         </div>
 
                         <div>
