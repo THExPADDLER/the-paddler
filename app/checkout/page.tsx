@@ -243,12 +243,20 @@ export default function CheckoutPage() {
             }.`
           : ""
       const isShiprocketUnavailable = !response.ok
+      const serviceable =
+        response.ok && data?.serviceable === true
+          ? true
+          : response.ok && data?.serviceable === false
+          ? false
+          : null
       const result = {
         pincode: clean,
-        serviceable: isShiprocketUnavailable ? null : Boolean(data?.serviceable),
+        serviceable: isShiprocketUnavailable ? null : serviceable,
         message:
           response.ok && data?.serviceable
             ? `Delivery available for ${clean}${
+                data.city ? ` in ${data.city}` : ""
+              }${
                 data.courierName ? ` via ${data.courierName}` : ""
               }.${etaText}`
             : isShiprocketUnavailable

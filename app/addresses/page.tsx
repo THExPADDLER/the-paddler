@@ -114,9 +114,13 @@ export default function AddressesPage() {
       const data = await response.json()
 
       if (response.ok && data?.serviceable) {
+        if (data.city) setCity(String(data.city))
+        if (data.state) setState(String(data.state))
         setPincodeServiceable(true)
         setPincodeMessage(
           `Delivery available${
+            data.city ? ` in ${data.city}` : ""
+          }${
             data.courierName ? ` via ${data.courierName}` : ""
           }${data.etd ? `. ETA: ${data.etd}` : "."}`
         )

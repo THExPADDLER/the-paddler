@@ -310,6 +310,7 @@ export default function ProductPage() {
       const data = await response.json()
 
       if (response.ok && data?.serviceable) {
+        const deliveryCity = data.city || city
         const courierText = data.courierName ? ` via ${data.courierName}` : ""
         const etaText =
           data.etd || data.estimatedDeliveryDays
@@ -320,7 +321,9 @@ export default function ProductPage() {
             : ` Approx delivery by ${deliveryDate}.`
 
         setDeliveryMessage(
-          `Delivery available${city ? ` in ${city}` : ""}${courierText}.${etaText}`
+          `Delivery available${
+            deliveryCity ? ` in ${deliveryCity}` : ""
+          }${courierText}.${etaText}`
         )
         return
       }
