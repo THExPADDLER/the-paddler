@@ -41,9 +41,32 @@ export async function POST(request: Request) {
     const payment = (order.payment || {}) as Record<string, unknown>
     const paymentStatus = String(payment.status || "pending")
     const razorpayPaymentId = String(payment.razorpayPaymentId || "")
+    const currentStatus = String(order.status || "")
     const now = new Date().toISOString()
     let refund: RefundResponse | null = null
     let refundStatus = "not_required"
+
+    if (currentStatus === "cancelled") {
+      return NextResponse.json({
+        ok: true,
+        orderId,
+        status: "cancelled",
+        message: "Order is already cancelled.",
+      })
+    }
+
+    if (["shipped", "in_transit", "delivered", "return_requested"].includes(currentStatus)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            currentStatus === "delivered" || currentStatus === "return_requested"
+              ? "Delivered orders cannot be cancelled. Please use return."
+              : "This order has already been shipped and cannot be cancelled.",
+        },
+        { status: 400 }
+      )
+    }
 
     if (paymentStatus === "success") {
       if (!razorpayPaymentId) {

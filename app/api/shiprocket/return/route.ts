@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore"
+import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore/lite"
 
-import { db } from "@/lib/firebase"
+import { serverDb } from "@/lib/firebase-server"
 import { createShiprocketReturnForOrder } from "@/lib/shiprocket"
 
 const RTO_CHARGE = 70
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const orderRef = doc(db, "orders", orderId)
+    const orderRef = doc(serverDb, "orders", orderId)
     const orderSnap = await getDoc(orderRef)
 
     if (!orderSnap.exists()) {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const shiprocketReturn = await createShiprocketReturnForOrder(orderId)
     const now = new Date().toISOString()
 
-    await addDoc(collection(db, "returns"), {
+    await addDoc(collection(serverDb, "returns"), {
       orderId,
       userId: userId || order.userId || "",
       customerEmail: customerEmail || order.customer?.email || "",
