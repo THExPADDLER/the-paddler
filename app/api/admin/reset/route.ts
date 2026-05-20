@@ -7,6 +7,7 @@ import {
   updateDoc,
 } from "firebase/firestore/lite"
 
+import { requireAdminRequest } from "@/lib/admin-auth"
 import { serverDb } from "@/lib/firebase-server"
 
 type ResetTarget = "users" | "orders_revenue" | "coupon_used" | "all"
@@ -17,14 +18,15 @@ const isResetTarget = (value: unknown): value is ResetTarget =>
   value === "coupon_used" ||
   value === "all"
 
-const deleteCollection = async (name: string) => {
+const deleteCollection = async (name: string, excludeIds: string[] = []) => {
   const snapshot = await getDocs(collection(serverDb, name))
+  const docsToDelete = snapshot.docs.filter((item) => !excludeIds.includes(item.id))
 
   await Promise.all(
-    snapshot.docs.map((item) => deleteDoc(doc(serverDb, name, item.id)))
+    docsToDelete.map((item) => deleteDoc(doc(serverDb, name, item.id)))
   )
 
-  return snapshot.size
+  return docsToDelete.length
 }
 
 const resetCouponUsage = async () => {
@@ -64,6 +66,8 @@ const resetCouponUsage = async () => {
 
 export async function POST(request: Request) {
   try {
+    const admin = await requireAdminRequest(request)
+
     const { target, backupConfirmed } = await request.json()
 
     if (!isResetTarget(target)) {
@@ -83,7 +87,8 @@ export async function POST(request: Request) {
     const result: Record<string, unknown> = {}
 
     if (target === "users" || target === "all") {
-      result.usersDeleted = await deleteCollection("users")
+      result.usersDeleted = await deleteCollection("users", [admin.uid])
+      result.adminUserPreserved = admin.email || admin.uid
     }
 
     if (target === "orders_revenue" || target === "all") {
@@ -114,4 +119,3 @@ export async function POST(request: Request) {
     )
   }
 }
-

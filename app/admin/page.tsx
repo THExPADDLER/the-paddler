@@ -18,7 +18,7 @@ import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
-import { db } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
 import { products as localProducts } from "@/lib/products"
 
 type DashboardStats = {
@@ -257,10 +257,18 @@ export default function AdminPage() {
     setResettingTarget(target)
 
     try {
+      const token = await auth.currentUser?.getIdToken()
+
+      if (!token) {
+        alert("Admin session expired. Please login again.")
+        return
+      }
+
       const backupResponse = await fetch("/api/admin/reset/backup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ target }),
       })
@@ -293,6 +301,7 @@ export default function AdminPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ target, backupConfirmed: true }),
       })
