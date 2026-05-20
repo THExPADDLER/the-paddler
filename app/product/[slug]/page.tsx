@@ -329,6 +329,11 @@ export default function ProductPage() {
         setDeliveryMessage("Delivery is currently not serviceable for this pincode.")
         return
       }
+
+      setDeliveryMessage(
+        `Live courier check is temporarily unavailable. Approx delivery by ${deliveryDate}.`
+      )
+      return
     } catch (error) {
       console.error("SERVICEABILITY CHECK ERROR:", error)
     }

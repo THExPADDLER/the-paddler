@@ -43,6 +43,10 @@ export default function AddressesPage() {
   const [pincode, setPincode] = useState("")
   const [type, setType] = useState("Home")
   const [pincodeMessage, setPincodeMessage] = useState("")
+  const [pincodeServiceable, setPincodeServiceable] = useState<boolean | null>(
+    null
+  )
+  const [checkingPincode, setCheckingPincode] = useState(false)
   const addressStorageKey = user ? `the-paddler-addresses-${user.uid}` : null
 
   useEffect(() => {
@@ -75,9 +79,10 @@ export default function AddressesPage() {
     )
   }
 
-  const handlePincodeChange = (value: string) => {
+  const handlePincodeChange = async (value: string) => {
     const cleanValue = value.replace(/\D/g, "").slice(0, 6)
     setPincode(cleanValue)
+    setPincodeServiceable(null)
 
     if (cleanValue.length < 6) {
       setCity("")
@@ -91,13 +96,49 @@ export default function AddressesPage() {
     if (matched) {
       setCity(matched.city)
       setState(matched.state)
-      setPincodeMessage("Pincode verified")
     } else {
       setCity("")
       setState("")
-      setPincodeMessage(
-        "Pincode not in quick list. Enter city/state manually; Shiprocket will verify delivery at checkout."
+    }
+
+    setCheckingPincode(true)
+    setPincodeMessage("Checking live delivery availability...")
+
+    try {
+      const response = await fetch(
+        `/api/shiprocket/serviceability?pincode=${encodeURIComponent(
+          cleanValue
+        )}`,
+        { cache: "no-store" }
       )
+      const data = await response.json()
+
+      if (response.ok && data?.serviceable) {
+        setPincodeServiceable(true)
+        setPincodeMessage(
+          `Delivery available${
+            data.courierName ? ` via ${data.courierName}` : ""
+          }${data.etd ? `. ETA: ${data.etd}` : "."}`
+        )
+        return
+      }
+
+      if (response.ok && data?.serviceable === false) {
+        setPincodeServiceable(false)
+        setPincodeMessage("Delivery is currently not serviceable for this pincode.")
+        return
+      }
+
+      setPincodeMessage(
+        "Live delivery check is temporarily unavailable. Enter city/state manually; we will verify before dispatch."
+      )
+    } catch (error) {
+      console.error("ADDRESS PINCODE SERVICEABILITY ERROR:", error)
+      setPincodeMessage(
+        "Live delivery check is temporarily unavailable. Enter city/state manually; we will verify before dispatch."
+      )
+    } finally {
+      setCheckingPincode(false)
     }
   }
 
@@ -106,6 +147,11 @@ export default function AddressesPage() {
 
     if (pincode.length !== 6 || !city.trim() || !state.trim()) {
       alert("Please enter a valid pincode, city, and state.")
+      return
+    }
+
+    if (pincodeServiceable === false) {
+      alert("This pincode is not serviceable right now.")
       return
     }
 
@@ -132,6 +178,7 @@ export default function AddressesPage() {
     setPincode("")
     setType("Home")
     setPincodeMessage("")
+    setPincodeServiceable(null)
 
     alert("Address saved successfully!")
   }
@@ -215,10 +262,14 @@ export default function AddressesPage() {
                 {pincodeMessage && (
                   <p
                     className={`text-xs mt-2 ${
-                      city && state ? "text-green-400" : "text-yellow-400"
+                      pincodeServiceable === true
+                        ? "text-green-400"
+                        : pincodeServiceable === false
+                        ? "text-red-400"
+                        : "text-yellow-400"
                     }`}
                   >
-                    {pincodeMessage}
+                    {checkingPincode ? "Checking live delivery availability..." : pincodeMessage}
                   </p>
                 )}
 
