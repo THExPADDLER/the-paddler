@@ -57,15 +57,12 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 const isPaidOrder = (order: OrderRecord) => {
-  const orderStatus = order.status?.toLowerCase()
   const paymentStatus = order.payment?.status?.toLowerCase()
 
   return (
-    orderStatus === "paid" ||
-    orderStatus === "delivered" ||
-    orderStatus === "shipped" ||
     paymentStatus === "success" ||
-    paymentStatus === "completed"
+    paymentStatus === "completed" ||
+    paymentStatus === "paid"
   )
 }
 
