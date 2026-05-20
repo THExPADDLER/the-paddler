@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import { Mail, Phone, ShoppingBag, UserRound } from "lucide-react"
+import { ChevronDown, Mail, Phone, ShoppingBag, UserRound } from "lucide-react"
 import { collection, getDocs } from "firebase/firestore"
 
 import { Header } from "@/components/header"
@@ -15,6 +15,13 @@ import { syncUserProfile } from "@/lib/sync-user-profile"
 type OrderRecord = {
   id: string
   userId?: string
+  items?: Array<{
+    name?: string
+    image?: string
+    size?: string
+    quantity?: number
+    price?: number
+  }>
   customer?: {
     name?: string
     email?: string
@@ -30,6 +37,10 @@ type OrderRecord = {
   pricing?: {
     total?: number
   }
+  payment?: {
+    status?: string
+  }
+  status?: string
   createdAt?: string
 }
 
@@ -74,6 +85,7 @@ export default function AdminUsersPage() {
   )
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [expandedBuyerKey, setExpandedBuyerKey] = useState<string | null>(null)
 
   const fetchUsers = async () => {
     try {
@@ -189,6 +201,21 @@ export default function AdminUsersPage() {
       ),
     [registeredUsers]
   )
+
+  const getBuyerOrders = (buyer: CustomerSummary) => {
+    return orders
+      .filter(
+        (order) =>
+          order.userId === buyer.key ||
+          order.customer?.email === buyer.email ||
+          order.customer?.phone === buyer.phone
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+      )
+  }
 
   return (
     <ProtectedRoute adminOnly>
@@ -380,11 +407,136 @@ export default function AdminUsersPage() {
                           EMAIL USER
                         </a>
 
-                        <div className="px-4 py-3 border border-border text-sm font-black flex items-center gap-2 text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedBuyerKey((current) =>
+                              current === user.key ? null : user.key
+                            )
+                          }
+                          className="px-4 py-3 border border-border text-sm font-black flex items-center gap-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        >
                           <ShoppingBag className="w-4 h-4" />
                           {user.orders} ORDER{user.orders === 1 ? "" : "S"}
-                        </div>
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${
+                              expandedBuyerKey === user.key ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
                       </div>
+
+                      {expandedBuyerKey === user.key && (
+                        <div className="mt-6 border-t border-border pt-5">
+                          <h3 className="mb-4 text-sm font-black">
+                            ORDER HISTORY
+                          </h3>
+
+                          <div className="space-y-4">
+                            {getBuyerOrders(user).map((order) => (
+                              <div
+                                key={order.id}
+                                className="border border-border bg-background/40 p-4"
+                              >
+                                <div className="grid gap-4 md:grid-cols-4">
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      ORDER ID
+                                    </p>
+                                    <p className="font-black break-all">
+                                      #{order.id}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      BOUGHT ON
+                                    </p>
+                                    <p className="font-bold">
+                                      {formatDate(order.createdAt)}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      PAYMENT
+                                    </p>
+                                    <p className="font-bold">
+                                      {order.payment?.status || "pending"}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      AMOUNT
+                                    </p>
+                                    <p className="font-black">
+                                      Rs{" "}
+                                      {Number(
+                                        order.pricing?.total || 0
+                                      ).toLocaleString("en-IN")}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-4 space-y-2">
+                                  {order.items?.length ? (
+                                    order.items.map((item, index) => (
+                                      <div
+                                        key={`${order.id}-${index}`}
+                                        className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          {item.image && (
+                                            <div className="relative h-14 w-12 overflow-hidden border border-border bg-secondary">
+                                              <Image
+                                                src={item.image}
+                                                alt={item.name || "Product"}
+                                                fill
+                                                className="object-cover"
+                                              />
+                                            </div>
+                                          )}
+                                          <div>
+                                            <p className="font-black">
+                                              {item.name || "Product"}
+                                            </p>
+                                            <p className="text-muted-foreground">
+                                              Size: {item.size || "-"} / Qty:{" "}
+                                              {item.quantity || 1}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <p className="font-bold">
+                                          Rs{" "}
+                                          {Number(
+                                            item.price || 0
+                                          ).toLocaleString("en-IN")}
+                                        </p>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="border-t border-border pt-3 text-sm text-muted-foreground">
+                                      Product details were not saved on this
+                                      older order.
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                                  <span className="border border-border px-3 py-1 text-muted-foreground">
+                                    Order status: {order.status || "pending"}
+                                  </span>
+                                  <span className="border border-border px-3 py-1 text-muted-foreground">
+                                    Payment status:{" "}
+                                    {order.payment?.status || "pending"}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
