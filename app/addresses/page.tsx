@@ -95,15 +95,17 @@ export default function AddressesPage() {
     } else {
       setCity("")
       setState("")
-      setPincodeMessage("Pincode not found. We will verify this later.")
+      setPincodeMessage(
+        "Pincode not in quick list. Enter city/state manually; Shiprocket will verify delivery at checkout."
+      )
     }
   }
 
   const handleAddAddress = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!city || !state) {
-      alert("Please enter a valid serviceable pincode.")
+    if (pincode.length !== 6 || !city.trim() || !state.trim()) {
+      alert("Please enter a valid pincode, city, and state.")
       return
     }
 
@@ -223,17 +225,19 @@ export default function AddressesPage() {
                 <input
                   type="text"
                   placeholder="City"
-                  className="w-full bg-neutral-900 border border-border px-4 py-4 outline-none text-muted-foreground mt-4 cursor-not-allowed"
+                  className="w-full bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white mt-4"
                   value={city}
-                  readOnly
+                  onChange={(e) => setCity(e.target.value)}
+                  required
                 />
 
                 <input
                   type="text"
                   placeholder="State"
-                  className="w-full bg-neutral-900 border border-border px-4 py-4 outline-none text-muted-foreground mt-4 cursor-not-allowed"
+                  className="w-full bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white mt-4"
                   value={state}
-                  readOnly
+                  onChange={(e) => setState(e.target.value)}
+                  required
                 />
 
               </div>

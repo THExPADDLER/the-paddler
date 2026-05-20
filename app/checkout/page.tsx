@@ -26,6 +26,15 @@ type Address = {
   type: string
 }
 
+type DeliveryCheck = {
+  pincode: string
+  serviceable: boolean | null
+  message: string
+  courierName?: string | null
+  etd?: string | null
+  estimatedDeliveryDays?: string | number | null
+}
+
 type RazorpayCheckoutResponse = {
   razorpay_order_id: string
   razorpay_payment_id: string
@@ -173,6 +182,8 @@ export default function CheckoutPage() {
   const [coupon, setCoupon] = useState("")
   const [couponDiscount, setCouponDiscount] = useState(0)
   const [placingOrder, setPlacingOrder] = useState(false)
+  const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null)
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
 
   useEffect(() => {
     if (loading) return
@@ -198,6 +209,79 @@ export default function CheckoutPage() {
 
   const shipping = totalPrice >= 1500 ? 0 : 80
   const total = totalPrice + shipping - couponDiscount
+  const selectedAddress = addresses.find(
+    (address) => address.id === selectedAddressId
+  )
+
+  const checkDeliveryServiceability = async (pincode: string) => {
+    const clean = pincode.replace(/\D/g, "").slice(0, 6)
+
+    if (clean.length !== 6) {
+      const result = {
+        pincode: clean,
+        serviceable: false,
+        message: "Enter a valid 6-digit pincode.",
+      }
+      setDeliveryCheck(result)
+      return result
+    }
+
+    setCheckingDelivery(true)
+
+    try {
+      const response = await fetch(
+        `/api/shiprocket/serviceability?pincode=${encodeURIComponent(clean)}`,
+        {
+          cache: "no-store",
+        }
+      )
+      const data = await response.json()
+      const etaText =
+        data?.etd || data?.estimatedDeliveryDays
+          ? ` Estimated delivery: ${
+              data.etd || `${data.estimatedDeliveryDays} business days`
+            }.`
+          : ""
+      const result = {
+        pincode: clean,
+        serviceable: Boolean(response.ok && data?.serviceable),
+        message:
+          response.ok && data?.serviceable
+            ? `Delivery available for ${clean}${
+                data.courierName ? ` via ${data.courierName}` : ""
+              }.${etaText}`
+            : data?.message ||
+              "Delivery is currently not serviceable for this pincode.",
+        courierName: data?.courierName || null,
+        etd: data?.etd || null,
+        estimatedDeliveryDays: data?.estimatedDeliveryDays || null,
+      }
+
+      setDeliveryCheck(result)
+      return result
+    } catch (error) {
+      console.error("CHECKOUT DELIVERY SERVICEABILITY ERROR:", error)
+      const result = {
+        pincode: clean,
+        serviceable: null,
+        message:
+          "Unable to verify delivery right now. Please try again before payment.",
+      }
+      setDeliveryCheck(result)
+      return result
+    } finally {
+      setCheckingDelivery(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedAddress?.pincode) {
+      setDeliveryCheck(null)
+      return
+    }
+
+    checkDeliveryServiceability(selectedAddress.pincode)
+  }, [selectedAddress?.pincode])
 
   const applyCoupon = async () => {
     const code = coupon.trim().toUpperCase()
@@ -244,10 +328,6 @@ export default function CheckoutPage() {
       return
     }
 
-    const selectedAddress = addresses.find(
-      (address) => address.id === selectedAddressId
-    )
-
     if (!selectedAddress) {
       alert("Please select or add a delivery address.")
       return
@@ -260,6 +340,19 @@ export default function CheckoutPage() {
 
       if (!inventoryCheck.ok) {
         alert(inventoryCheck.message)
+        return
+      }
+
+      const currentDeliveryCheck =
+        deliveryCheck?.pincode === selectedAddress.pincode
+          ? deliveryCheck
+          : await checkDeliveryServiceability(selectedAddress.pincode)
+
+      if (currentDeliveryCheck.serviceable !== true) {
+        alert(
+          currentDeliveryCheck.message ||
+            "This pincode is not serviceable right now."
+        )
         return
       }
 
@@ -577,12 +670,38 @@ export default function CheckoutPage() {
                 </h2>
 
                 <p className="text-muted-foreground">
-                  Estimated delivery: <span className="text-foreground font-bold">3–7 business days</span>
+                  {checkingDelivery
+                    ? "Checking selected address with Shiprocket..."
+                    : deliveryCheck?.message ||
+                      "Select an address to check live delivery availability."}
                 </p>
 
-                <p className="text-sm text-muted-foreground mt-3">
-                  Exact ETA will be updated after courier pickup.
-                </p>
+                {selectedAddress?.pincode && (
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        checkDeliveryServiceability(selectedAddress.pincode)
+                      }
+                      disabled={checkingDelivery}
+                      className="border border-border px-4 py-3 text-sm font-black hover:bg-secondary disabled:opacity-50"
+                    >
+                      {checkingDelivery ? "CHECKING..." : "CHECK AGAIN"}
+                    </button>
+
+                    <p
+                      className={`text-sm ${
+                        deliveryCheck?.serviceable === true
+                          ? "text-green-400"
+                          : deliveryCheck?.serviceable === false
+                          ? "text-red-400"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      Pincode: {selectedAddress.pincode}
+                    </p>
+                  </div>
+                )}
               </section>
 
             </div>
@@ -704,3 +823,4 @@ export default function CheckoutPage() {
     </>
   )
 }
+
