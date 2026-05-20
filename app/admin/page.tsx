@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Package,
@@ -40,6 +40,35 @@ type OrderRecord = {
     status?: string
   }
 }
+
+type ResetTarget = "users" | "orders_revenue" | "coupon_used" | "all"
+
+const resetOptions: Array<{
+  target: ResetTarget
+  label: string
+  description: string
+}> = [
+  {
+    target: "users",
+    label: "Reset Users",
+    description: "Clears Firestore user profiles. Firebase Auth accounts stay safe.",
+  },
+  {
+    target: "orders_revenue",
+    label: "Reset Orders and Revenue",
+    description: "Clears orders, invoices and returns. Revenue becomes zero.",
+  },
+  {
+    target: "coupon_used",
+    label: "Reset Coupon Used",
+    description: "Clears coupon usage from order records while keeping coupon codes.",
+  },
+  {
+    target: "all",
+    label: "Reset All",
+    description: "Clears users, orders, invoices, returns and coupon usage.",
+  },
+]
 
 const emptyStats: DashboardStats = {
   totalOrders: 0,
@@ -122,54 +151,55 @@ export default function AdminPage() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
   const [savingMaintenance, setSavingMaintenance] = useState(false)
+  const [resetMenuOpen, setResetMenuOpen] = useState(false)
+  const [resettingTarget, setResettingTarget] = useState<ResetTarget | null>(null)
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoadingStats(true)
+
+      const [ordersResult, productsResult, usersResult] =
+        await Promise.allSettled([
+          getDocs(collection(db, "orders")),
+          getDocs(collection(db, "products")),
+          getDocs(collection(db, "users")),
+        ])
+
+      const orders =
+        ordersResult.status === "fulfilled"
+          ? ordersResult.value.docs.map((item) => item.data() as OrderRecord)
+          : []
+
+      const productsCount =
+        productsResult.status === "fulfilled" && productsResult.value.size > 0
+          ? productsResult.value.size
+          : localProducts.length
+
+      const usersFromCollection =
+        usersResult.status === "fulfilled" ? usersResult.value.size : 0
+      const uniqueOrderUsers = new Set(
+        orders.map((order) => order.userId).filter(Boolean)
+      ).size
+
+      setStats({
+        totalOrders: orders.length,
+        revenue: orders
+          .filter(isPaidOrder)
+          .reduce((sum, order) => sum + Number(order.pricing?.total || 0), 0),
+        products: productsCount,
+        users: usersFromCollection || uniqueOrderUsers,
+        couponsUsed: orders.filter((order) => order.pricing?.couponCode).length,
+      })
+    } catch (error) {
+      console.error("ADMIN DASHBOARD STATS ERROR:", error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }, [])
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoadingStats(true)
-
-        const [ordersResult, productsResult, usersResult] =
-          await Promise.allSettled([
-            getDocs(collection(db, "orders")),
-            getDocs(collection(db, "products")),
-            getDocs(collection(db, "users")),
-          ])
-
-        const orders =
-          ordersResult.status === "fulfilled"
-            ? ordersResult.value.docs.map((item) => item.data() as OrderRecord)
-            : []
-
-        const productsCount =
-          productsResult.status === "fulfilled" && productsResult.value.size > 0
-            ? productsResult.value.size
-            : localProducts.length
-
-        const usersFromCollection =
-          usersResult.status === "fulfilled" ? usersResult.value.size : 0
-        const uniqueOrderUsers = new Set(
-          orders.map((order) => order.userId).filter(Boolean)
-        ).size
-
-        setStats({
-          totalOrders: orders.length,
-          revenue: orders
-            .filter(isPaidOrder)
-            .reduce((sum, order) => sum + Number(order.pricing?.total || 0), 0),
-          products: productsCount,
-          users: usersFromCollection || uniqueOrderUsers,
-          couponsUsed: orders.filter((order) => order.pricing?.couponCode)
-            .length,
-        })
-      } catch (error) {
-        console.error("ADMIN DASHBOARD STATS ERROR:", error)
-      } finally {
-        setLoadingStats(false)
-      }
-    }
-
     fetchStats()
-  }, [])
+  }, [fetchStats])
 
   useEffect(() => {
     const fetchMaintenanceMode = async () => {
@@ -213,6 +243,74 @@ export default function AdminPage() {
       alert("Unable to update maintenance mode.")
     } finally {
       setSavingMaintenance(false)
+    }
+  }
+
+  const downloadBackupAndReset = async (target: ResetTarget) => {
+    const option = resetOptions.find((item) => item.target === target)
+    const confirmed = window.confirm(
+      `${option?.label || "Reset"}?\n\nA PDF backup will download first. After that, this data will be reset. Continue?`
+    )
+
+    if (!confirmed) return
+
+    setResettingTarget(target)
+
+    try {
+      const backupResponse = await fetch("/api/admin/reset/backup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target }),
+      })
+
+      if (!backupResponse.ok) {
+        const error = await backupResponse.json().catch(() => null)
+        alert(error?.message || "Unable to create backup PDF. Reset cancelled.")
+        return
+      }
+
+      const backupBlob = await backupResponse.blob()
+      const fallbackName = `${new Intl.DateTimeFormat("en-IN", {
+        month: "long",
+        year: "numeric",
+      })
+        .format(new Date())
+        .replace(/\s+/g, "-")}-backup.pdf`
+      const fileName =
+        backupResponse.headers.get("X-Backup-Filename") || fallbackName
+      const url = URL.createObjectURL(backupBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+
+      const resetResponse = await fetch("/api/admin/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target, backupConfirmed: true }),
+      })
+      const data = await resetResponse.json()
+
+      if (!resetResponse.ok || !data?.ok) {
+        alert(data?.message || "Backup downloaded, but reset failed.")
+        return
+      }
+
+      await fetchStats()
+      setResetMenuOpen(false)
+      alert("Backup downloaded and reset completed.")
+    } catch (error) {
+      console.error("ADMIN RESET FLOW ERROR:", error)
+      alert("Unable to complete reset.")
+    } finally {
+      setResettingTarget(null)
     }
   }
 
@@ -268,22 +366,56 @@ export default function AdminPage() {
                 ADMIN PANEL
               </h1>
 
-              <button
-                type="button"
-                onClick={toggleMaintenanceMode}
-                disabled={savingMaintenance}
-                className={`px-6 py-3 text-sm font-black transition-colors disabled:opacity-60 ${
-                  maintenanceEnabled
-                    ? "bg-green-400 text-black hover:bg-green-300"
-                    : "bg-red-500 text-white hover:bg-red-400"
-                }`}
-              >
-                {savingMaintenance
-                  ? "UPDATING..."
-                  : maintenanceEnabled
-                  ? "MAKE SITE LIVE"
-                  : "TAKE SITE DOWN"}
-              </button>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setResetMenuOpen((value) => !value)}
+                    disabled={Boolean(resettingTarget)}
+                    className="px-6 py-3 text-sm font-black border border-border hover:bg-secondary transition-colors disabled:opacity-60"
+                  >
+                    {resettingTarget ? "RESETTING..." : "RESET"}
+                  </button>
+
+                  {resetMenuOpen && (
+                    <div className="absolute right-0 top-full z-20 mt-3 w-80 border border-border bg-background shadow-xl">
+                      {resetOptions.map((item) => (
+                        <button
+                          key={item.target}
+                          type="button"
+                          onClick={() => downloadBackupAndReset(item.target)}
+                          disabled={Boolean(resettingTarget)}
+                          className="block w-full border-b border-border px-4 py-4 text-left hover:bg-secondary disabled:opacity-50"
+                        >
+                          <span className="block text-sm font-black">
+                            {item.label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                            {item.description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleMaintenanceMode}
+                  disabled={savingMaintenance}
+                  className={`px-6 py-3 text-sm font-black transition-colors disabled:opacity-60 ${
+                    maintenanceEnabled
+                      ? "bg-green-400 text-black hover:bg-green-300"
+                      : "bg-red-500 text-white hover:bg-red-400"
+                  }`}
+                >
+                  {savingMaintenance
+                    ? "UPDATING..."
+                    : maintenanceEnabled
+                    ? "MAKE SITE LIVE"
+                    : "TAKE SITE DOWN"}
+                </button>
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
