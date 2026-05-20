@@ -70,6 +70,7 @@ export default function AdminOrdersPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [deductingInventoryId, setDeductingInventoryId] = useState<string | null>(null)
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
+  const [syncingShipmentId, setSyncingShipmentId] = useState<string | null>(null)
 
   const fetchOrders = async () => {
     try {
@@ -219,6 +220,38 @@ export default function AdminOrdersPage() {
       alert("Unable to cancel order.")
     } finally {
       setCancellingId(null)
+    }
+  }
+
+  const syncShiprocketTracking = async (order: AdminOrder) => {
+    if (!order.shipment?.awb && !order.shipment?.shipmentId) {
+      alert("No Shiprocket AWB/shipment id found for this order yet.")
+      return
+    }
+
+    setSyncingShipmentId(order.id)
+
+    try {
+      const response = await fetch(
+        `/api/shiprocket/track?orderId=${encodeURIComponent(order.id)}`,
+        {
+          cache: "no-store",
+        }
+      )
+      const data = await response.json()
+
+      if (!response.ok || !data?.ok) {
+        alert(data?.message || "Unable to sync Shiprocket tracking.")
+        return
+      }
+
+      await fetchOrders()
+      alert(`Shiprocket status synced: ${formatStatus(data.status || "updated")}`)
+    } catch (error) {
+      console.error("SHIPROCKET TRACKING SYNC ERROR:", error)
+      alert("Unable to sync Shiprocket tracking.")
+    } finally {
+      setSyncingShipmentId(null)
     }
   }
 
@@ -590,12 +623,24 @@ export default function AdminOrdersPage() {
                           )}
 
                           {(order.shipment?.awb || order.shipment?.shipmentId) && (
-                            <Link
-                              href={`/tracking/${order.id}`}
-                              className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary"
-                            >
-                              Track
-                            </Link>
+                            <>
+                              <Link
+                                href={`/tracking/${order.id}`}
+                                className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary"
+                              >
+                                Track
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => syncShiprocketTracking(order)}
+                                disabled={syncingShipmentId === order.id}
+                                className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary disabled:opacity-50"
+                              >
+                                {syncingShipmentId === order.id
+                                  ? "Syncing..."
+                                  : "Sync Shiprocket"}
+                              </button>
+                            </>
                           )}
 
                           <button

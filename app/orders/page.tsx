@@ -151,6 +151,7 @@ export default function OrdersPage() {
   const [retryingPaymentOrderId, setRetryingPaymentOrderId] = useState<string | null>(null)
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
   const autoCheckedPayments = useRef<Set<string>>(new Set())
+  const autoSyncedShipments = useRef<Set<string>>(new Set())
 
   const fetchOrders = async () => {
     if (loading) return
@@ -215,6 +216,34 @@ export default function OrdersPage() {
         })
         .catch((error) => {
           console.error("ORDER AUTO PAYMENT CHECK ERROR:", error)
+        })
+    })
+  }, [orders])
+
+  useEffect(() => {
+    const trackableOrders = orders.filter(
+      (order) =>
+        order.payment?.status === "success" &&
+        Boolean(order.shipment?.awb || order.trackingId) &&
+        !autoSyncedShipments.current.has(order.id)
+    )
+
+    if (trackableOrders.length === 0) return
+
+    trackableOrders.slice(0, 3).forEach((order) => {
+      autoSyncedShipments.current.add(order.id)
+
+      fetch(`/api/shiprocket/track?orderId=${encodeURIComponent(order.id)}`, {
+        cache: "no-store",
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data?.ok) {
+            fetchOrders()
+          }
+        })
+        .catch((error) => {
+          console.error("ORDER AUTO SHIPROCKET SYNC ERROR:", error)
         })
     })
   }, [orders])
