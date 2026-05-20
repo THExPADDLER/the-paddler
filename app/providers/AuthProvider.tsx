@@ -1,8 +1,10 @@
 "use client";
 
 import { onAuthStateChanged, User } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import { createContext, useContext, useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 
 type AuthContextType = {
   user: User | null;
@@ -24,18 +26,40 @@ export function AuthProvider({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
+        const userProfile = {
+          uid: currentUser.uid,
+          name: currentUser.displayName || "Customer",
+          email: currentUser.email || "",
+          phone: currentUser.phoneNumber || "",
+          photoURL: currentUser.photoURL || "",
+          providerIds: currentUser.providerData.map((provider) => provider.providerId),
+          lastLoginAt: new Date().toISOString(),
+        };
+
         localStorage.setItem(
           "user",
-          JSON.stringify({
-            uid: currentUser.uid,
-            name: currentUser.displayName || "Customer",
-            email: currentUser.email || "",
-          })
+          JSON.stringify(userProfile)
         );
+
+        try {
+          await setDoc(
+            doc(db, "users", currentUser.uid),
+            {
+              ...userProfile,
+              createdAt: new Date(
+                currentUser.metadata.creationTime || Date.now()
+              ).toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (error) {
+          console.error("USER PROFILE SAVE ERROR:", error);
+        }
       } else {
         localStorage.removeItem("user");
       }
