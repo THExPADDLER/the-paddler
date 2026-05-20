@@ -242,14 +242,17 @@ export default function CheckoutPage() {
               data.etd || `${data.estimatedDeliveryDays} business days`
             }.`
           : ""
+      const isShiprocketUnavailable = !response.ok
       const result = {
         pincode: clean,
-        serviceable: Boolean(response.ok && data?.serviceable),
+        serviceable: isShiprocketUnavailable ? null : Boolean(data?.serviceable),
         message:
           response.ok && data?.serviceable
             ? `Delivery available for ${clean}${
                 data.courierName ? ` via ${data.courierName}` : ""
               }.${etaText}`
+            : isShiprocketUnavailable
+            ? "Delivery partner check is temporarily unavailable. You can still pay; we will verify dispatch before shipping."
             : data?.message ||
               "Delivery is currently not serviceable for this pincode.",
         courierName: data?.courierName || null,
@@ -348,7 +351,7 @@ export default function CheckoutPage() {
           ? deliveryCheck
           : await checkDeliveryServiceability(selectedAddress.pincode)
 
-      if (currentDeliveryCheck.serviceable !== true) {
+      if (currentDeliveryCheck.serviceable === false) {
         alert(
           currentDeliveryCheck.message ||
             "This pincode is not serviceable right now."
