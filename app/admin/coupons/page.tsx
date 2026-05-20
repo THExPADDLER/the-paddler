@@ -189,7 +189,7 @@ export default function AdminCouponsPage() {
     : couponStats
 
   return (
-    <ProtectedRoute adminOnly>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <>
         <Header />
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { ChevronDown, Mail, Phone, ShoppingBag, UserRound } from "lucide-react"
-import { collection, getDocs } from "firebase/firestore"
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -11,6 +11,7 @@ import { ProtectedRoute } from "@/components/protected-route"
 import { auth } from "@/lib/firebase"
 import { db } from "@/lib/firebase"
 import { syncUserProfile } from "@/lib/sync-user-profile"
+import type { UserRole } from "@/lib/sync-user-profile"
 
 type OrderRecord = {
   id: string
@@ -52,6 +53,7 @@ type UserRecord = {
   phone?: string
   photoURL?: string
   providerIds?: string[]
+  role?: UserRole
   createdAt?: string
   lastLoginAt?: string
 }
@@ -86,6 +88,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [expandedBuyerKey, setExpandedBuyerKey] = useState<string | null>(null)
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null)
 
   const fetchUsers = async () => {
     try {
@@ -142,6 +145,39 @@ export default function AdminUsersPage() {
       )
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const updateUserRole = async (user: UserRecord, role: UserRole) => {
+    if (!auth.currentUser) {
+      alert("Admin session expired. Please login again.")
+      return
+    }
+
+    if (user.id === auth.currentUser.uid && role !== "admin") {
+      const confirmed = window.confirm(
+        "You are changing your own admin role. This can remove your admin access. Continue?"
+      )
+
+      if (!confirmed) return
+    }
+
+    setUpdatingRoleId(user.id)
+
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        role,
+        updatedAt: new Date().toISOString(),
+      })
+      setRegisteredUsers((current) =>
+        current.map((item) => (item.id === user.id ? { ...item, role } : item))
+      )
+      alert(`Role updated to ${role}.`)
+    } catch (error) {
+      console.error("USER ROLE UPDATE ERROR:", error)
+      alert("Unable to update user role.")
+    } finally {
+      setUpdatingRoleId(null)
     }
   }
 
@@ -218,7 +254,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <ProtectedRoute adminOnly>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <>
         <Header />
 
@@ -343,6 +379,26 @@ export default function AdminUsersPage() {
                           <p className="font-bold">
                             {formatDate(user.lastLoginAt || user.createdAt)}
                           </p>
+                          <div className="mt-4">
+                            <p className="mb-2 text-xs text-muted-foreground">
+                              ROLE
+                            </p>
+                            <select
+                              value={user.role || "customer"}
+                              disabled={updatingRoleId === user.id}
+                              onChange={(event) =>
+                                updateUserRole(
+                                  user,
+                                  event.target.value as UserRole
+                                )
+                              }
+                              className="w-full border border-border bg-background px-3 py-2 text-sm font-black outline-none disabled:opacity-50"
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="staff">Staff</option>
+                              <option value="customer">Customer</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -20,6 +20,7 @@ import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
 import { auth, db } from "@/lib/firebase"
 import { products as localProducts } from "@/lib/products"
+import type { UserRole } from "@/lib/sync-user-profile"
 
 type DashboardStats = {
   totalOrders: number
@@ -119,12 +120,14 @@ const links = [
     href: "/admin/users",
     desc: "View customers, addresses and reset password.",
     icon: Users,
+    adminOnly: true,
   },
   {
     title: "Coupons",
     href: "/admin/coupons",
     desc: "Influencer coupon usage and commission tracking.",
     icon: TicketPercent,
+    adminOnly: true,
   },
   {
     title: "Returns",
@@ -148,11 +151,26 @@ const links = [
 
 export default function AdminPage() {
   const [stats, setStats] = useState<DashboardStats>(emptyStats)
+  const [role, setRole] = useState<UserRole>("customer")
   const [loadingStats, setLoadingStats] = useState(true)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
   const [savingMaintenance, setSavingMaintenance] = useState(false)
   const [resetMenuOpen, setResetMenuOpen] = useState(false)
   const [resettingTarget, setResettingTarget] = useState<ResetTarget | null>(null)
+  const isAdmin = role === "admin"
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user")
+
+    if (!storedUser) return
+
+    try {
+      const parsed = JSON.parse(storedUser) as { role?: UserRole }
+      setRole(parsed.role || "customer")
+    } catch {
+      setRole("customer")
+    }
+  }, [])
 
   const fetchStats = useCallback(async () => {
     try {
@@ -375,6 +393,7 @@ export default function AdminPage() {
                 ADMIN PANEL
               </h1>
 
+              {isAdmin && (
               <div className="flex flex-wrap items-start gap-3">
                 <div className="relative">
                   <button
@@ -425,8 +444,10 @@ export default function AdminPage() {
                     : "TAKE SITE DOWN"}
                 </button>
               </div>
+              )}
             </div>
 
+            {isAdmin && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
               {statCards.map((item) => {
                 const Icon = item.icon
@@ -462,9 +483,10 @@ export default function AdminPage() {
                 )
               })}
             </div>
+            )}
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {links.map((item) => {
+              {links.filter((item) => isAdmin || !item.adminOnly).map((item) => {
                 const Icon = item.icon
 
                 return (

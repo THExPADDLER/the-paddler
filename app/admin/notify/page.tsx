@@ -85,7 +85,7 @@ export default function AdminNotifyPage() {
   }
 
   return (
-    <ProtectedRoute adminOnly>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <>
         <Header />
 

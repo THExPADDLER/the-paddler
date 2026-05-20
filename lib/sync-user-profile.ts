@@ -1,29 +1,41 @@
 "use client"
 
 import type { User } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
 
+export type UserRole = "admin" | "staff" | "customer"
+
+const ADMIN_EMAILS = ["vp982761@gmail.com", "thexpaddler@gmail.com"]
+
 export const syncUserProfile = async (
   currentUser: User,
-  role: "admin" | "customer" = "customer"
+  role?: UserRole
 ) => {
+  const userRef = doc(db, "users", currentUser.uid)
+  const existingSnap = await getDoc(userRef)
+  const existingRole = existingSnap.exists()
+    ? (existingSnap.data().role as UserRole | undefined)
+    : undefined
+  const email = currentUser.email || ""
+  const resolvedRole =
+    role || existingRole || (ADMIN_EMAILS.includes(email) ? "admin" : "customer")
   const userProfile = {
     uid: currentUser.uid,
     name: currentUser.displayName || "Customer",
-    email: currentUser.email || "",
+    email,
     phone: currentUser.phoneNumber || "",
     photoURL: currentUser.photoURL || "",
     providerIds: currentUser.providerData.map((provider) => provider.providerId),
-    role,
+    role: resolvedRole,
     lastLoginAt: new Date().toISOString(),
   }
 
   localStorage.setItem("user", JSON.stringify(userProfile))
 
   await setDoc(
-    doc(db, "users", currentUser.uid),
+    userRef,
     {
       ...userProfile,
       createdAt: new Date(

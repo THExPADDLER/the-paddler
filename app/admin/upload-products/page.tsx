@@ -44,7 +44,7 @@ export default function UploadProductsPage() {
   }
 
   return (
-    <ProtectedRoute adminOnly>
+    <ProtectedRoute allowedRoles={["admin"]}>
       <>
         <Header />
 

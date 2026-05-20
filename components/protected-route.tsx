@@ -5,22 +5,23 @@ import { useRouter } from "next/navigation"
 import { onAuthStateChanged } from "firebase/auth"
 
 import { auth } from "@/lib/firebase"
-import { syncUserProfile } from "@/lib/sync-user-profile"
+import { syncUserProfile, type UserRole } from "@/lib/sync-user-profile"
 
 type ProtectedRouteProps = {
   children: React.ReactNode
   adminOnly?: boolean
+  allowedRoles?: UserRole[]
 }
-
-const ADMIN_EMAILS = ["vp982761@gmail.com", "thexpaddler@gmail.com"]
 
 export function ProtectedRoute({
   children,
   adminOnly = false,
+  allowedRoles,
 }: ProtectedRouteProps) {
   const router = useRouter()
   const [allowed, setAllowed] = useState(false)
   const [checking, setChecking] = useState(true)
+  const allowedRoleKey = allowedRoles?.join(",") || ""
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -31,26 +32,32 @@ export function ProtectedRoute({
         return
       }
 
-      const email = firebaseUser.email || ""
-
-      const role = ADMIN_EMAILS.includes(email) ? "admin" : "customer"
+      let role: UserRole = "customer"
 
       try {
-        await syncUserProfile(firebaseUser, role)
+        const profile = await syncUserProfile(firebaseUser)
+        role = profile.role
       } catch (error) {
         console.error("PROTECTED ROUTE USER PROFILE SAVE ERROR:", error)
+        const fallbackEmail = firebaseUser.email || ""
         localStorage.setItem(
           "user",
           JSON.stringify({
             uid: firebaseUser.uid,
             name: firebaseUser.displayName || "Customer",
-            email,
+            email: fallbackEmail,
             role,
           })
         )
       }
 
-      if (adminOnly && role !== "admin") {
+      const permittedRoles = allowedRoleKey
+        ? (allowedRoleKey.split(",") as UserRole[])
+        : adminOnly
+          ? (["admin", "staff"] as UserRole[])
+          : null
+
+      if (permittedRoles && !permittedRoles.includes(role)) {
         router.push("/")
         setChecking(false)
         return
@@ -61,7 +68,7 @@ export function ProtectedRoute({
     })
 
     return () => unsubscribe()
-  }, [router, adminOnly])
+  }, [router, adminOnly, allowedRoleKey])
 
   if (checking) {
     return (
