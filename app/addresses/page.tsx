@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { PhoneAuthProvider, RecaptchaVerifier, updatePhoneNumber } from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 import { MapPin, Trash2, Plus, Save } from "lucide-react"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { indiaStates } from "@/lib/india-states"
+import { auth, db } from "@/lib/firebase"
 
 type Address = {
   id: number
@@ -44,10 +47,15 @@ const getApproxDeliveryDate = () => {
 
 export default function AddressesPage() {
   const { user, loading } = useAuth()
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
   const [addresses, setAddresses] = useState<Address[]>([])
 
   const [fullName, setFullName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [phone, setPhone] = useState("+91 ")
+  const [phoneVerificationId, setPhoneVerificationId] = useState("")
+  const [phoneOtp, setPhoneOtp] = useState("")
+  const [sendingOtp, setSendingOtp] = useState(false)
+  const [phoneVerified, setPhoneVerified] = useState(false)
   const [address, setAddress] = useState("")
   const [landmark, setLandmark] = useState("")
   const [city, setCity] = useState("")
@@ -153,6 +161,165 @@ export default function AddressesPage() {
     }
   }
 
+  const formatPhoneInput = (value: string) => {
+    let digits = value.replace(/\D/g, "")
+
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2)
+    }
+
+    digits = digits.slice(0, 10)
+
+    const firstGroup = digits.slice(0, 5)
+    const secondGroup = digits.slice(5, 10)
+
+    if (!firstGroup) return "+91 "
+    return `+91 ${firstGroup}${secondGroup ? ` ${secondGroup}` : ""}`
+  }
+
+  const formatPhoneNumber = (value: string) => {
+    let digits = value.replace(/\D/g, "")
+
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2)
+    }
+
+    if (digits.length === 10) return `+91${digits}`
+
+    return ""
+  }
+
+  const getRecaptchaVerifier = () => {
+    if (recaptchaVerifierRef.current) return recaptchaVerifierRef.current
+
+    recaptchaVerifierRef.current = new RecaptchaVerifier(
+      auth,
+      "address-recaptcha-container",
+      {
+        size: "invisible",
+        "expired-callback": () => {
+          setPhoneVerificationId("")
+          setPhoneOtp("")
+          setPhoneVerified(false)
+        },
+      }
+    )
+
+    return recaptchaVerifierRef.current
+  }
+
+  const getPhoneErrorMessage = (error: any) => {
+    if (error?.code === "auth/invalid-phone-number") {
+      return "Please enter a valid mobile number."
+    }
+
+    if (error?.code === "auth/invalid-verification-code") {
+      return "The OTP is incorrect. Please check and enter it again."
+    }
+
+    if (error?.code === "auth/code-expired") {
+      return "The OTP has expired. Please resend OTP."
+    }
+
+    if (error?.code === "auth/operation-not-allowed") {
+      return "Phone OTP is not enabled yet. Enable Phone provider in Firebase Authentication."
+    }
+
+    if (
+      error?.code === "auth/account-exists-with-different-credential" ||
+      error?.code === "auth/credential-already-in-use"
+    ) {
+      return "This phone number is already linked with another account. Please use that account or enter a different mobile number."
+    }
+
+    return error?.message || "Unable to verify phone number."
+  }
+
+  const resetPhoneVerification = (nextPhone: string) => {
+    setPhone(nextPhone)
+    setPhoneVerificationId("")
+    setPhoneOtp("")
+    setPhoneVerified(false)
+  }
+
+  const handleSendPhoneOtp = async () => {
+    const formattedPhone = formatPhoneNumber(phone)
+
+    if (!formattedPhone) {
+      alert("Please enter a valid 10 digit mobile number.")
+      return
+    }
+
+    if (auth.currentUser?.phoneNumber === formattedPhone) {
+      setPhone(formatPhoneInput(formattedPhone))
+      setPhoneVerified(true)
+      setPhoneVerificationId("")
+      setPhoneOtp("")
+      alert("Phone number already verified on this account.")
+      return
+    }
+
+    try {
+      setSendingOtp(true)
+      const provider = new PhoneAuthProvider(auth)
+      const verifier = getRecaptchaVerifier()
+      const verificationId = await provider.verifyPhoneNumber(
+        formattedPhone,
+        verifier
+      )
+
+      setPhone(formatPhoneInput(formattedPhone))
+      setPhoneVerificationId(verificationId)
+      setPhoneOtp("")
+      setPhoneVerified(false)
+      alert("OTP sent to your mobile number.")
+    } catch (error: any) {
+      console.warn("ADDRESS PHONE OTP ERROR:", error?.code || error)
+      recaptchaVerifierRef.current?.clear()
+      recaptchaVerifierRef.current = null
+      alert(getPhoneErrorMessage(error))
+    } finally {
+      setSendingOtp(false)
+    }
+  }
+
+  const handleVerifyPhoneOtp = async () => {
+    if (!phoneVerificationId || !phoneOtp.trim()) {
+      alert("Please enter the OTP sent to your phone number.")
+      return
+    }
+
+    if (!auth.currentUser) {
+      alert("Please login again before verifying your phone number.")
+      return
+    }
+
+    try {
+      const credential = PhoneAuthProvider.credential(
+        phoneVerificationId,
+        phoneOtp.trim()
+      )
+
+      await updatePhoneNumber(auth.currentUser, credential)
+      await setDoc(
+        doc(db, "users", auth.currentUser.uid),
+        {
+          phone: auth.currentUser.phoneNumber || formatPhoneNumber(phone),
+          phoneVerified: true,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      )
+
+      setPhoneVerified(true)
+      alert("Phone number verified.")
+    } catch (error: any) {
+      console.warn("ADDRESS PHONE OTP VERIFY ERROR:", error?.code || error)
+      setPhoneVerified(false)
+      alert(getPhoneErrorMessage(error))
+    }
+  }
+
   const handleAddAddress = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -166,10 +333,15 @@ export default function AddressesPage() {
       return
     }
 
+    if (!formatPhoneNumber(phone) || !phoneVerified) {
+      alert("Please verify your phone number with OTP before saving address.")
+      return
+    }
+
     const newAddress: Address = {
       id: Date.now(),
       fullName,
-      phone,
+      phone: formatPhoneInput(phone),
       address,
       landmark,
       city,
@@ -181,7 +353,7 @@ export default function AddressesPage() {
     saveAddresses([...addresses, newAddress])
 
     setFullName("")
-    setPhone("")
+    resetPhoneVerification("+91 ")
     setAddress("")
     setLandmark("")
     setCity("")
@@ -238,12 +410,72 @@ export default function AddressesPage() {
 
                 <input
                   type="tel"
-                  placeholder="Phone Number"
+                  placeholder="+91 93992 55433"
+                  maxLength={16}
                   className="w-full bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white mt-4"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={phone || "+91 "}
+                  onChange={(e) => resetPhoneVerification(formatPhoneInput(e.target.value))}
+                  onFocus={() => {
+                    if (!phone) setPhone("+91 ")
+                    if (!phone.startsWith("+91 ")) {
+                      setPhone(formatPhoneInput(phone))
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    const cursorPosition = e.currentTarget.selectionStart || 0
+
+                    if (
+                      (e.key === "Backspace" || e.key === "Delete") &&
+                      cursorPosition <= 4
+                    ) {
+                      e.preventDefault()
+                    }
+                  }}
                   required
                 />
+
+                <div className="mt-3 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSendPhoneOtp}
+                    disabled={sendingOtp || !formatPhoneNumber(phone)}
+                    className="border border-border px-5 py-3 text-sm font-black hover:bg-secondary disabled:opacity-50"
+                  >
+                    {sendingOtp
+                      ? "SENDING..."
+                      : phoneVerificationId
+                      ? "RESEND OTP"
+                      : "SEND OTP"}
+                  </button>
+
+                  {phoneVerified && (
+                    <span className="flex items-center text-sm font-bold text-green-400">
+                      Verified
+                    </span>
+                  )}
+                </div>
+
+                <div id="address-recaptcha-container" className="hidden"></div>
+
+                {phoneVerificationId && !phoneVerified && (
+                  <div className="mt-3 flex gap-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Enter OTP"
+                      className="min-w-0 flex-1 bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white"
+                      value={phoneOtp}
+                      onChange={(e) => setPhoneOtp(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyPhoneOtp}
+                      className="border border-border px-5 py-3 text-sm font-black hover:bg-secondary"
+                    >
+                      VERIFY
+                    </button>
+                  </div>
+                )}
 
                 <textarea
                   placeholder="House no., building, street, area"

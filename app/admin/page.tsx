@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Package,
@@ -12,8 +12,9 @@ import {
   ImageIcon,
   Star,
   Boxes,
-  BadgePercent,
   FileDown,
+  UserRoundCheck,
+  CalendarDays,
 } from "lucide-react"
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 
@@ -30,6 +31,7 @@ type DashboardStats = {
   products: number
   users: number
   couponsUsed: number
+  unreadReturns: number
 }
 
 type OrderRecord = {
@@ -50,6 +52,7 @@ const emptyStats: DashboardStats = {
   products: localProducts.length,
   users: 0,
   couponsUsed: 0,
+  unreadReturns: 0,
 }
 
 const formatCurrency = (value: number) =>
@@ -68,6 +71,9 @@ const isPaidOrder = (order: OrderRecord) => {
     paymentStatus === "paid"
   )
 }
+
+const isValidReportDate = (value: string) =>
+  !value || /^\d{4}-\d{2}-\d{2}$/.test(value)
 
 const links = [
   {
@@ -98,16 +104,16 @@ const links = [
   {
     title: "Coupons",
     href: "/admin/coupons",
-    desc: "Influencer coupon usage and commission tracking.",
+    desc: "Coupon usage and commission tracking.",
     icon: TicketPercent,
     adminOnly: true,
   },
   {
-    title: "Influencer Dashboard",
-    href: "/admin/influencer",
-    desc: "View coupon usage, sold tees, and generated commission.",
-    icon: BadgePercent,
-    influencerOnly: true,
+    title: "Influencers",
+    href: "/admin/influencers",
+    desc: "Edit influencer details and upload shoot photos.",
+    icon: UserRoundCheck,
+    adminOnly: true,
   },
   {
     title: "Returns",
@@ -130,6 +136,8 @@ const links = [
 ]
 
 export default function AdminPage() {
+  const reportFromInputRef = useRef<HTMLInputElement | null>(null)
+  const reportToInputRef = useRef<HTMLInputElement | null>(null)
   const [stats, setStats] = useState<DashboardStats>(emptyStats)
   const [role, setRole] = useState<UserRole>("customer")
   const [loadingStats, setLoadingStats] = useState(true)
@@ -140,7 +148,6 @@ export default function AdminPage() {
   const [reportTo, setReportTo] = useState("")
   const [downloadingReport, setDownloadingReport] = useState(false)
   const isAdmin = role === "admin"
-  const isInfluencer = role === "influencer"
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user")
@@ -159,11 +166,12 @@ export default function AdminPage() {
     try {
       setLoadingStats(true)
 
-      const [ordersResult, productsResult, usersResult] =
+      const [ordersResult, productsResult, usersResult, returnsResult] =
         await Promise.allSettled([
           getDocs(collection(db, "orders")),
           getDocs(collection(db, "products")),
           getDocs(collection(db, "users")),
+          getDocs(collection(db, "returns")),
         ])
 
       const orders =
@@ -181,6 +189,12 @@ export default function AdminPage() {
       const uniqueOrderUsers = new Set(
         orders.map((order) => order.userId).filter(Boolean)
       ).size
+      const unreadReturns =
+        returnsResult.status === "fulfilled"
+          ? returnsResult.value.docs.filter(
+              (item) => item.data().adminSeen !== true
+            ).length
+          : 0
 
       setStats({
         totalOrders: orders.length,
@@ -190,6 +204,7 @@ export default function AdminPage() {
         products: productsCount,
         users: usersFromCollection || uniqueOrderUsers,
         couponsUsed: orders.filter((order) => order.pricing?.couponCode).length,
+        unreadReturns,
       })
     } catch (error) {
       console.error("ADMIN DASHBOARD STATS ERROR:", error)
@@ -251,6 +266,11 @@ export default function AdminPage() {
     try {
       if (reportFrom && reportTo && reportFrom > reportTo) {
         alert("From date cannot be after To date.")
+        return
+      }
+
+      if (!isValidReportDate(reportFrom) || !isValidReportDate(reportTo)) {
+        alert("Use date format YYYY-MM-DD.")
         return
       }
 
@@ -339,7 +359,7 @@ export default function AdminPage() {
   )
 
   return (
-    <ProtectedRoute allowedRoles={["admin", "staff", "influencer"]}>
+    <ProtectedRoute allowedRoles={["admin", "staff"]}>
       <>
         <Header />
 
@@ -379,22 +399,44 @@ export default function AdminPage() {
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         <label className="text-xs font-black text-muted-foreground">
                           FROM
-                          <input
-                            type="date"
-                            value={reportFrom}
-                            onChange={(event) => setReportFrom(event.target.value)}
-                            className="mt-2 w-full border border-border bg-background px-3 py-3 text-sm text-foreground outline-none"
-                          />
+                          <div className="relative mt-2">
+                            <input
+                              ref={reportFromInputRef}
+                              type="date"
+                              value={reportFrom}
+                              onChange={(event) => setReportFrom(event.target.value)}
+                              className="w-full border border-border bg-background px-3 py-3 pr-11 text-sm text-foreground outline-none [color-scheme:dark]"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Select report from date"
+                              onClick={() => reportFromInputRef.current?.showPicker?.()}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 border border-border bg-secondary p-2 text-white hover:bg-muted"
+                            >
+                              <CalendarDays className="h-4 w-4" />
+                            </button>
+                          </div>
                         </label>
 
                         <label className="text-xs font-black text-muted-foreground">
                           TO
-                          <input
-                            type="date"
-                            value={reportTo}
-                            onChange={(event) => setReportTo(event.target.value)}
-                            className="mt-2 w-full border border-border bg-background px-3 py-3 text-sm text-foreground outline-none"
-                          />
+                          <div className="relative mt-2">
+                            <input
+                              ref={reportToInputRef}
+                              type="date"
+                              value={reportTo}
+                              onChange={(event) => setReportTo(event.target.value)}
+                              className="w-full border border-border bg-background px-3 py-3 pr-11 text-sm text-foreground outline-none [color-scheme:dark]"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Select report to date"
+                              onClick={() => reportToInputRef.current?.showPicker?.()}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 border border-border bg-secondary p-2 text-white hover:bg-muted"
+                            >
+                              <CalendarDays className="h-4 w-4" />
+                            </button>
+                          </div>
                         </label>
                       </div>
 
@@ -483,19 +525,25 @@ export default function AdminPage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {links
                 .filter((item) => {
-                  if (isInfluencer) return item.influencerOnly
-                  if (item.influencerOnly) return isAdmin
                   return isAdmin || !item.adminOnly
                 })
                 .map((item) => {
                 const Icon = item.icon
+                const badgeCount =
+                  item.href === "/admin/returns" ? stats.unreadReturns : 0
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="border border-border bg-secondary/20 p-6 hover:bg-secondary transition-colors group"
+                    className="relative border border-border bg-secondary/20 p-6 hover:bg-secondary transition-colors group"
                   >
+                    {badgeCount > 0 && (
+                      <span className="absolute right-4 top-4 flex min-w-6 h-6 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-black text-white shadow-[0_0_20px_rgba(239,68,68,0.55)]">
+                        {badgeCount}
+                      </span>
+                    )}
+
                     <Icon className="w-6 h-6 text-muted-foreground mb-5 group-hover:text-foreground transition-colors" />
 
                     <h2 className="text-xl font-black mb-2">{item.title}</h2>

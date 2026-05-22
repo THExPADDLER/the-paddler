@@ -160,6 +160,153 @@ html {
   animation: timeline-wait 1.8s ease-in-out infinite;
 }
 
+@keyframes thank-you-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 80px rgba(34, 197, 94, 0.32);
+  }
+
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 120px rgba(34, 197, 94, 0.58);
+  }
+}
+
+@keyframes thank-you-scan {
+  from {
+    transform: translateY(0);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(75vh);
+    opacity: 0;
+  }
+}
+
+@keyframes thank-you-step {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes order-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.thank-you-stage,
+.orders-stage {
+  isolation: isolate;
+}
+
+.thank-you-grid,
+.orders-stage::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, black, transparent 72%);
+}
+
+.thank-you-orb {
+  position: absolute;
+  width: 32rem;
+  height: 32rem;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(24px);
+}
+
+.thank-you-orb-a {
+  top: 14%;
+  left: -10rem;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.18), transparent 62%);
+}
+
+.thank-you-orb-b {
+  right: -8rem;
+  bottom: 5%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.13), transparent 64%);
+}
+
+.thank-you-pulse {
+  animation: thank-you-pulse 2s ease-in-out infinite;
+}
+
+.thank-you-scan {
+  animation: thank-you-scan 2.8s ease-in-out infinite;
+}
+
+.thank-you-title {
+  text-shadow: 0 0 50px rgba(255, 255, 255, 0.18);
+}
+
+.thank-you-step {
+  animation: thank-you-step 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.orders-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.orders-stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 0;
+}
+
+.orders-stage::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(34, 197, 94, 0.09), transparent 24rem),
+    radial-gradient(circle at 88% 28%, rgba(255, 255, 255, 0.08), transparent 26rem);
+  z-index: 0;
+}
+
+.order-card {
+  animation: order-card-in 560ms ease-out both;
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.order-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.56);
+}
+
+.order-timeline-panel {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 /* ===== GLOBAL UI MOTION ===== */
 
 .scroll-atmosphere {

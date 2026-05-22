@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Clock, ImageIcon, ImagePlus, Save, Type, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { CalendarClock, Clock, ImageIcon, ImagePlus, Save, Type, X } from "lucide-react"
 import { doc, getDoc, setDoc } from "firebase/firestore"
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 
@@ -40,7 +40,11 @@ const fromDatetimeLocal = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toISOString()
 }
 
+const isValidCountdownDate = (value: string) =>
+  !value || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)
+
 export default function AdminBannerPage() {
+  const countdownInputRef = useRef<HTMLInputElement | null>(null)
   const [saving, setSaving] = useState(false)
   const [heroSlideFiles, setHeroSlideFiles] = useState<Array<File | null>>([
     null,
@@ -211,6 +215,11 @@ export default function AdminBannerPage() {
     setSaving(true)
 
     try {
+      if (!isValidCountdownDate(form.countdownAt)) {
+        alert("Use countdown format YYYY-MM-DD HH:MM.")
+        return
+      }
+
       let heroSlides = [...emptySlides].map(
         (_, index) => form.heroSlides[index] || ""
       )
@@ -522,17 +531,28 @@ export default function AdminBannerPage() {
                 </h2>
 
                 <div className="grid sm:grid-cols-2 gap-5">
-                  <input
-                    type="datetime-local"
-                    className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
-                    value={form.countdownAt}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        countdownAt: event.target.value,
-                      }))
-                    }
-                  />
+                  <div className="relative">
+                    <input
+                      ref={countdownInputRef}
+                      type="datetime-local"
+                      className="w-full bg-background border border-border px-4 py-4 pr-14 outline-none text-white [color-scheme:dark]"
+                      value={form.countdownAt}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          countdownAt: event.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      aria-label="Select countdown date and time"
+                      onClick={() => countdownInputRef.current?.showPicker?.()}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 border border-border bg-secondary p-2 text-white hover:bg-muted"
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </button>
+                  </div>
 
                   <input
                     placeholder="Drop title"

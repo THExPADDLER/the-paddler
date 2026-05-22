@@ -20,7 +20,7 @@ const sections = [
   },
   {
     title: "5. Refunds, Returns And Exchanges",
-    body: "Returns and replacements are accepted within 7 days of delivery if the product is unused, unwashed, and in original packaging. Replacements are allowed for sizing issues if stock is available and will be delivered within 7 days. Shipping costs for returns or exchanges are borne by the customer unless the product is defective. Refunds will be credited to the original payment method within 7-10 business days.",
+    body: "Returns and replacements are accepted within 3 days of delivery only for size-related issues, provided the product is unused, unwashed, and in original packaging. Replacements are subject to stock availability. Shipping or RTO charges for returns may be deducted from the refund unless the product is defective, damaged, or wrong at delivery. Refunds will be credited to the original payment method within 7-10 business days after return verification.",
   },
   {
     title: "6. Cancellations",

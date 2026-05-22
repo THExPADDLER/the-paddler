@@ -5,11 +5,31 @@ import { serverDb } from "@/lib/firebase-server"
 import { createShiprocketReturnForOrder } from "@/lib/shiprocket"
 
 const RTO_CHARGE = 70
+const RETURN_WINDOW_DAYS = 3
+
+const isReturnWindowOpen = (order: any) => {
+  const deliveredAt = order.deliveredAt || order.updatedAt
+  if (!deliveredAt) return true
+
+  const deliveredDate = new Date(deliveredAt)
+  if (Number.isNaN(deliveredDate.getTime())) return true
+
+  const windowEndsAt = new Date(deliveredDate)
+  windowEndsAt.setDate(windowEndsAt.getDate() + RETURN_WINDOW_DAYS)
+
+  return Date.now() <= windowEndsAt.getTime()
+}
 
 export async function POST(request: Request) {
   try {
-    const { orderId, userId, customerEmail, reason = "Customer return request" } =
-      await request.json()
+    const {
+      orderId,
+      userId,
+      customerEmail,
+      reason = "Customer return request",
+      description = "",
+      imageUrl = "",
+    } = await request.json()
 
     if (!orderId) {
       return NextResponse.json(
@@ -46,6 +66,16 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!isReturnWindowOpen(order)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Returns and replacements are accepted only within 3 days of delivery.",
+        },
+        { status: 400 }
+      )
+    }
+
     const amount = Number(order?.pricing?.total || 0)
     const refundAmount = Math.max(amount - RTO_CHARGE, 0)
     const shiprocketReturn = await createShiprocketReturnForOrder(orderId)
@@ -60,9 +90,13 @@ export async function POST(request: Request) {
       rtoCharge: RTO_CHARGE,
       refundAmount,
       reason,
+      description: String(description).slice(0, 1000),
+      imageUrl,
       status: "return_requested",
       pickupStatus: "shiprocket_return_created",
       refundStatus: "refund_after_rto_pickup",
+      adminSeen: false,
+      seenAt: null,
       shiprocketReturn,
       createdAt: now,
       updatedAt: now,

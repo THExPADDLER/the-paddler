@@ -1,42 +1,90 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Instagram } from "lucide-react"
+import { collection, getDocs, orderBy, query } from "firebase/firestore"
 
-import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { Header } from "@/components/header"
+import { db } from "@/lib/firebase"
 
-const influencers = [
+type Influencer = {
+  id: string
+  name: string
+  username: string
+  image: string
+  followers: string
+  couponCode: string
+  bio?: string
+  instagramUrl?: string
+  active?: boolean
+}
+
+const fallbackInfluencers: Influencer[] = [
   {
+    id: "anaya",
     name: "ANAYA",
     username: "@anaya.jpg",
     image: "/images/influencers/anaya.jpg",
     followers: "48K",
-    code: "ANAYA10",
+    couponCode: "ANAYA10",
+    active: true,
   },
   {
+    id: "lucifer",
     name: "LUCIFER",
     username: "@ig.lucifer.__",
     image: "/images/influencers/lucifer.jpg",
     followers: "22K",
-    code: "LUCIFER10",
+    couponCode: "LUCIFER10",
+    active: true,
   },
   {
+    id: "zoe",
     name: "ZOE",
     username: "@zoe__thebitch",
     image: "/images/influencers/zoe.jpg",
     followers: "15K",
-    code: "ZOE10",
+    couponCode: "ZOE10",
+    active: true,
   },
 ]
 
 export default function InfluencersPage() {
+  const [influencers, setInfluencers] = useState(fallbackInfluencers)
+
+  useEffect(() => {
+    const fetchInfluencers = async () => {
+      try {
+        const snapshot = await getDocs(
+          query(collection(db, "influencers"), orderBy("createdAt", "desc"))
+        )
+        const data = snapshot.docs
+          .map((item) => ({
+            id: item.id,
+            ...(item.data() as Omit<Influencer, "id">),
+          }))
+          .filter((item) => item.active !== false)
+
+        if (data.length > 0) {
+          setInfluencers(data)
+        }
+      } catch (error) {
+        console.error("PUBLIC INFLUENCERS FETCH ERROR:", error)
+      }
+    }
+
+    fetchInfluencers()
+  }, [])
+
   return (
     <>
       <Header />
 
       <main className="min-h-screen bg-background text-foreground pt-24 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
           <p className="text-xs tracking-[0.35em] text-muted-foreground mb-3">
             THE PADDLER COMMUNITY
           </p>
@@ -52,12 +100,12 @@ export default function InfluencersPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {influencers.map((influencer) => (
               <div
-                key={influencer.username}
+                key={influencer.id}
                 className="border border-border bg-secondary/20 overflow-hidden group"
               >
                 <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900">
                   <Image
-                    src={influencer.image}
+                    src={influencer.image || "/placeholder.svg"}
                     alt={influencer.name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -67,36 +115,40 @@ export default function InfluencersPage() {
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div>
-                      <h2 className="text-2xl font-black">
-                        {influencer.name}
-                      </h2>
+                      <h2 className="text-2xl font-black">{influencer.name}</h2>
 
                       <p className="text-sm text-muted-foreground mt-1">
                         {influencer.username}
                       </p>
                     </div>
 
-                    <Instagram className="w-5 h-5 text-muted-foreground" />
+                    {influencer.instagramUrl ? (
+                      <Link href={influencer.instagramUrl} target="_blank">
+                        <Instagram className="w-5 h-5 text-muted-foreground hover:text-foreground" />
+                      </Link>
+                    ) : (
+                      <Instagram className="w-5 h-5 text-muted-foreground" />
+                    )}
                   </div>
+
+                  {influencer.bio && (
+                    <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
+                      {influencer.bio}
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-between border-t border-border pt-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">
-                        FOLLOWERS
-                      </p>
+                      <p className="text-xs text-muted-foreground">FOLLOWERS</p>
 
-                      <p className="font-black">
-                        {influencer.followers}
-                      </p>
+                      <p className="font-black">{influencer.followers || "-"}</p>
                     </div>
 
                     <div>
-                      <p className="text-xs text-muted-foreground">
-                        COUPON
-                      </p>
+                      <p className="text-xs text-muted-foreground">COUPON</p>
 
                       <p className="font-black">
-                        {influencer.code}
+                        {influencer.couponCode || "-"}
                       </p>
                     </div>
                   </div>
@@ -122,7 +174,6 @@ export default function InfluencersPage() {
               APPLY FOR COLLAB
             </Link>
           </div>
-
         </div>
       </main>
 

@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { Eye, EyeOff } from "lucide-react";
+import { auth, db } from "@/lib/firebase";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
+  deleteUser,
   GoogleAuthProvider,
   getRedirectResult,
+  linkWithCredential,
   onAuthStateChanged,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
   setPersistence,
   signInWithPopup,
   signInWithRedirect,
@@ -19,12 +25,22 @@ const GOOGLE_REDIRECT_KEY = "the-paddler-google-signup-redirect";
 
 export default function SignupPage() {
   const router = useRouter();
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const emailSignupInProgressRef = useRef(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [gender, setGender] = useState("Male");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("+91 ");
+  const [phoneVerificationId, setPhoneVerificationId] = useState("");
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [signingUp, setSigningUp] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [redirectQuery, setRedirectQuery] = useState("");
 
   useEffect(() => {
@@ -58,6 +74,7 @@ export default function SignupPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) return;
+      if (emailSignupInProgressRef.current) return;
 
       const redirectPath = getRedirectPath();
       sessionStorage.removeItem(GOOGLE_REDIRECT_KEY);
@@ -87,18 +104,188 @@ export default function SignupPage() {
     typeof navigator !== "undefined" &&
     /mobile|android|iphone|ipad|ipod/i.test(navigator.userAgent);
 
+  const formatPhoneInput = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+
+    digits = digits.slice(0, 10);
+
+    const firstGroup = digits.slice(0, 5);
+    const secondGroup = digits.slice(5, 10);
+
+    if (!firstGroup) return "+91 ";
+    return `+91 ${firstGroup}${secondGroup ? ` ${secondGroup}` : ""}`;
+  };
+
+  const formatPhoneNumber = (value: string) => {
+    let digits = value.replace(/\D/g, "");
+
+    if (digits.startsWith("91")) {
+      digits = digits.slice(2);
+    }
+
+    if (digits.length === 10) return `+91${digits}`;
+
+    return "";
+  };
+
+  const getRecaptchaVerifier = () => {
+    if (recaptchaVerifierRef.current) return recaptchaVerifierRef.current;
+
+    recaptchaVerifierRef.current = new RecaptchaVerifier(
+      auth,
+      "signup-recaptcha-container",
+      {
+        size: "invisible",
+        "expired-callback": () => {
+          setPhoneVerificationId("");
+          setPhoneOtp("");
+        },
+      }
+    );
+
+    return recaptchaVerifierRef.current;
+  };
+
+  const getSignupErrorMessage = (error: any) => {
+    if (error?.code === "auth/email-already-in-use") {
+      return "This email is already registered. Please login.";
+    }
+
+    if (error?.code === "auth/invalid-phone-number") {
+      return "Please enter a valid mobile number.";
+    }
+
+    if (error?.code === "auth/invalid-verification-code") {
+      return "The OTP is incorrect. Please check and enter it again.";
+    }
+
+    if (error?.code === "auth/code-expired") {
+      return "The OTP has expired. Please resend OTP.";
+    }
+
+    if (
+      error?.code === "auth/credential-already-in-use" ||
+      error?.code === "auth/account-exists-with-different-credential"
+    ) {
+      return "This phone number is already linked with another account.";
+    }
+
+    if (error?.code === "auth/operation-not-allowed") {
+      return "Phone signup is not enabled yet. Enable Phone provider in Firebase Authentication.";
+    }
+
+    return error?.message || "Signup failed. Please try again.";
+  };
+
+  const handleSendPhoneOtp = async () => {
+    const formattedPhone = formatPhoneNumber(phone);
+
+    if (!formattedPhone) {
+      alert("Please enter a valid 10 digit mobile number.");
+      return;
+    }
+
+    try {
+      setSendingOtp(true);
+      const provider = new PhoneAuthProvider(auth);
+      const verifier = getRecaptchaVerifier();
+      const verificationId = await provider.verifyPhoneNumber(
+        formattedPhone,
+        verifier
+      );
+
+      setPhone(formatPhoneInput(formattedPhone));
+      setPhoneVerificationId(verificationId);
+      alert("OTP sent to your mobile number.");
+    } catch (error: any) {
+      console.warn("PHONE OTP SETUP ERROR:", error?.code || error);
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
+      alert(getSignupErrorMessage(error));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (password !== confirmPassword) {
+      alert("Passwords do not match. Please re-enter your password.");
+      return;
+    }
+
+    const formattedPhone = formatPhoneNumber(phone);
+
+    if (!formattedPhone) {
+      alert("Please enter a valid 10 digit mobile number.");
+      return;
+    }
+
+    if (!phoneVerificationId) {
+      alert("Please send OTP and verify your phone number before signup.");
+      return;
+    }
+
+    if (!phoneOtp.trim()) {
+      alert("Please enter the OTP sent to your phone number.");
+      return;
+    }
+
+    emailSignupInProgressRef.current = true;
+    setSigningUp(true);
+
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
+      const phoneCredential = PhoneAuthProvider.credential(
+        phoneVerificationId,
+        phoneOtp.trim()
+      );
 
-      await updateProfile(result.user, {
-        displayName: `${firstName} ${lastName}`,
-      });
+      try {
+        const linkedResult = await linkWithCredential(
+          result.user,
+          phoneCredential
+        );
 
-      console.log("Signup user:", result.user);
-      console.log("Gender:", gender);
+        await updateProfile(linkedResult.user, {
+          displayName: `${firstName} ${lastName}`,
+        });
+
+        await setDoc(
+          doc(db, "users", linkedResult.user.uid),
+          {
+            uid: linkedResult.user.uid,
+            name: `${firstName} ${lastName}`,
+            email,
+            phone: linkedResult.user.phoneNumber || formattedPhone,
+            phoneVerified: true,
+            gender,
+            providerIds: linkedResult.user.providerData.map(
+              (provider) => provider.providerId
+            ),
+            role: "customer",
+            lastLoginAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            createdAt: new Date(
+              linkedResult.user.metadata.creationTime || Date.now()
+            ).toISOString(),
+          },
+          { merge: true }
+        );
+
+        console.log("Signup user:", linkedResult.user);
+        console.log("Gender:", gender);
+      } catch (linkError) {
+        await deleteUser(result.user).catch((deleteError) => {
+          console.error("SIGNUP CLEANUP DELETE ERROR:", deleteError);
+        });
+        throw linkError;
+      }
 
       alert("Signup successful");
 
@@ -107,12 +294,10 @@ export default function SignupPage() {
       }, 800);
     } catch (error: any) {
       console.error("SIGNUP ERROR:", error);
-
-      if (error.code === "auth/email-already-in-use") {
-        alert("This email is already registered. Please login.");
-      } else {
-        alert("Signup failed. Check console error.");
-      }
+      alert(getSignupErrorMessage(error));
+    } finally {
+      emailSignupInProgressRef.current = false;
+      setSigningUp(false);
     }
   };
 
@@ -232,23 +417,130 @@ export default function SignupPage() {
           </div>
 
           <div>
+            <label className="block mb-2 text-sm text-white/70">
+              Mobile Number
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                placeholder="+91 93992 55433"
+                maxLength={16}
+                className="min-w-0 flex-1 px-4 py-3 rounded-lg bg-black border border-white/30 text-white outline-none focus:border-white"
+                value={phone || "+91 "}
+                onChange={(e) => {
+                  setPhone(formatPhoneInput(e.target.value));
+                  setPhoneVerificationId("");
+                  setPhoneOtp("");
+                }}
+                onFocus={() => {
+                  if (!phone) setPhone("+91 ");
+                  if (!phone.startsWith("+91 ")) {
+                    setPhone(formatPhoneInput(phone));
+                  }
+                }}
+                onKeyDown={(e) => {
+                  const cursorPosition = e.currentTarget.selectionStart || 0;
+
+                  if (
+                    (e.key === "Backspace" || e.key === "Delete") &&
+                    cursorPosition <= 4
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
+                required
+              />
+              <button
+                type="button"
+                onClick={handleSendPhoneOtp}
+                disabled={sendingOtp || !formatPhoneNumber(phone)}
+                className="shrink-0 px-4 py-3 rounded-lg border border-white/30 text-sm font-semibold hover:bg-white hover:text-black transition disabled:opacity-50"
+              >
+                {sendingOtp ? "Sending..." : phoneVerificationId ? "Resend" : "OTP"}
+              </button>
+            </div>
+            <div id="signup-recaptcha-container" className="hidden"></div>
+          </div>
+
+          {phoneVerificationId && (
+            <div>
+              <label className="block mb-2 text-sm text-white/70">
+                Phone OTP
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter OTP"
+                className="w-full px-4 py-3 rounded-lg bg-black border border-white/30 text-white outline-none focus:border-white"
+                value={phoneOtp}
+                onChange={(e) => setPhoneOtp(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          <div>
             <label className="block mb-2 text-sm text-white/70">Password</label>
-            <input
-              type="password"
-              placeholder="Minimum 6 characters"
-              className="w-full px-4 py-3 rounded-lg bg-black border border-white/30 text-white outline-none focus:border-white"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimum 6 characters"
+                className="w-full px-4 py-3 pr-12 rounded-lg bg-black border border-white/30 text-white outline-none focus:border-white"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block mb-2 text-sm text-white/70">Re-enter Password</label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Re-enter your password"
+                className="w-full px-4 py-3 pr-12 rounded-lg bg-black border border-white/30 text-white outline-none focus:border-white"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                aria-label={
+                  showConfirmPassword ? "Hide re-entered password" : "Show re-entered password"
+                }
+                onClick={() => setShowConfirmPassword((value) => !value)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-white text-black py-3 rounded-lg font-semibold hover:bg-white/80 transition"
+            disabled={signingUp}
+            className="w-full bg-white text-black py-3 rounded-lg font-semibold hover:bg-white/80 transition disabled:opacity-60"
           >
-            Sign Up
+            {signingUp ? "Creating Account..." : "Sign Up"}
           </button>
         </form>
 

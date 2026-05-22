@@ -21,7 +21,7 @@ const faqs = [
   {
     question: "What is your return policy?",
     answer:
-      "We offer a 3-day return policy from the date of delivery.",
+      "Returns and replacements are accepted within 3 days of delivery only for size issues, and the product must be unused, unwashed, and in original packaging.",
   },
   {
     question: "When will I receive my refund?",

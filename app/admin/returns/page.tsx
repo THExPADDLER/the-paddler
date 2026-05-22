@@ -10,6 +10,7 @@ import {
   orderBy,
   query,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore"
 
 import { Header } from "@/components/header"
@@ -25,9 +26,13 @@ type ReturnRequest = {
   items?: CartItem[]
   amount?: number
   reason?: string
+  description?: string
+  imageUrl?: string
   status?: string
   pickupStatus?: string
   refundStatus?: string
+  adminSeen?: boolean
+  seenAt?: string | null
   createdAt?: string
 }
 
@@ -50,6 +55,10 @@ export default function AdminReturnsPage() {
         orderBy("createdAt", "desc")
       )
       const snapshot = await getDocs(returnsQuery)
+      const now = new Date().toISOString()
+      const unseenDocs = snapshot.docs.filter(
+        (item) => item.data().adminSeen !== true
+      )
 
       setReturns(
         snapshot.docs.map((item) => ({
@@ -57,6 +66,20 @@ export default function AdminReturnsPage() {
           ...(item.data() as Omit<ReturnRequest, "id">),
         }))
       )
+
+      if (unseenDocs.length > 0) {
+        const batch = writeBatch(db)
+
+        unseenDocs.forEach((item) => {
+          batch.update(item.ref, {
+            adminSeen: true,
+            seenAt: now,
+            updatedAt: now,
+          })
+        })
+
+        await batch.commit()
+      }
     } catch (error) {
       console.error("ADMIN RETURNS FETCH ERROR:", error)
       setReturns([])
@@ -184,6 +207,20 @@ export default function AdminReturnsPage() {
                       <div className="mt-6 pt-5 border-t border-border grid md:grid-cols-3 gap-5">
                         <div>
                           <p className="text-xs text-muted-foreground">
+                            RETURN REASON
+                          </p>
+                          <p className="font-black mt-1">
+                            {item.reason || "No reason provided"}
+                          </p>
+                          {item.description && (
+                            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-muted-foreground">
                             RETURN STATUS
                           </p>
                           <p className="font-black text-yellow-400 mt-1">
@@ -191,6 +228,24 @@ export default function AdminReturnsPage() {
                           </p>
                         </div>
 
+                        {item.imageUrl && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              CUSTOMER IMAGE
+                            </p>
+                            <a
+                              href={item.imageUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-block border border-border px-4 py-3 text-sm font-black hover:bg-secondary"
+                            >
+                              VIEW IMAGE
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-6 pt-5 border-t border-border grid md:grid-cols-3 gap-5">
                         <div>
                           <p className="text-xs text-muted-foreground">
                             PICKUP STATUS

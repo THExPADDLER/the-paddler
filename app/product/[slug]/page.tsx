@@ -33,6 +33,8 @@ import { Footer } from "@/components/footer"
 import { db } from "@/lib/firebase"
 import { useCart } from "@/lib/cart-context"
 import { useWishlist } from "@/lib/wishlist-context"
+
+const SAVED_COUPON_KEY = "paddlerCouponCode"
 import { getSharedInventory, type SizeStock } from "@/lib/inventory"
 import {
   getProductBySlug,
@@ -375,17 +377,16 @@ export default function ProductPage() {
 
       if (couponSnap.exists() && couponSnap.data().active !== false) {
         const discountPercent = Number(couponSnap.data().discountPercent || 0)
+        localStorage.setItem(SAVED_COUPON_KEY, code)
         setCouponMessage(
           `Coupon available: ${discountPercent}% OFF at checkout.`
         )
         return
       }
 
-      if (code === "PADDLER10") {
-        setCouponMessage("Coupon available: 10% OFF at checkout.")
-        return
+      if (localStorage.getItem(SAVED_COUPON_KEY) === code) {
+        localStorage.removeItem(SAVED_COUPON_KEY)
       }
-
       setCouponMessage("This coupon is not active right now.")
     } catch (error) {
       console.error("COUPON CHECK ERROR:", error)
@@ -588,7 +589,7 @@ export default function ProductPage() {
 
                   <button
                     type="button"
-                    onClick={applyCoupon}
+                    onClick={() => applyCoupon()}
                     className="bg-foreground text-background px-5 py-3 text-sm font-black"
                   >
                     CHECK

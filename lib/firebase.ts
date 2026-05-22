@@ -12,6 +12,7 @@ const getAuthDomain = () => {
 
   if (
     hostname === "v0-the-paddler.vercel.app" ||
+    hostname === "the-paddler.vercel.app" ||
     hostname === "thepaddler.in" ||
     hostname === "www.thepaddler.in"
   ) {

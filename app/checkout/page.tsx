@@ -1,11 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Lock, MapPin, Tag, Truck } from "lucide-react"
-import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore"
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -13,6 +22,17 @@ import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { db } from "@/lib/firebase"
 import { createInventoryKey, emptySizeStock, type SizeStock } from "@/lib/inventory"
+
+const SAVED_COUPON_KEY = "paddlerCouponCode"
+const couponBlockingStatuses = new Set([
+  "pending_payment",
+  "paid",
+  "processing",
+  "shipped",
+  "in_transit",
+  "delivered",
+  "return_requested",
+])
 
 type Address = {
   id: number
@@ -195,6 +215,7 @@ export default function CheckoutPage() {
   const [placingOrder, setPlacingOrder] = useState(false)
   const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null)
   const [checkingDelivery, setCheckingDelivery] = useState(false)
+  const autoAppliedCouponRef = useRef("")
 
   useEffect(() => {
     if (loading) return
@@ -300,12 +321,35 @@ export default function CheckoutPage() {
     checkDeliveryServiceability(selectedAddress.pincode)
   }, [selectedAddress?.pincode])
 
-  const applyCoupon = async () => {
-    const code = coupon.trim().toUpperCase()
+  const hasUserAlreadyUsedCoupon = async (code: string) => {
+    if (!user) return false
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid)
+    )
+    const snapshot = await getDocs(ordersQuery)
+
+    return snapshot.docs.some((item) => {
+      const order = item.data()
+      const usedCode = String(order.pricing?.couponCode || "").toUpperCase()
+      const status = String(order.status || "")
+      const paymentStatus = String(order.payment?.status || "")
+
+      if (usedCode !== code) return false
+      if (status === "cancelled" || status === "payment_failed") return false
+      if (paymentStatus === "failed") return false
+
+      return couponBlockingStatuses.has(status) || paymentStatus === "success"
+    })
+  }
+
+  const applyCoupon = async (couponCode = coupon, options?: { silent?: boolean }) => {
+    const code = couponCode.trim().toUpperCase()
 
     if (!code) {
       setCouponDiscount(0)
-      alert("Please enter a coupon code.")
+      if (!options?.silent) alert("Please enter a coupon code.")
       return
     }
 
@@ -315,24 +359,51 @@ export default function CheckoutPage() {
 
       if (couponSnap.exists() && couponSnap.data().active !== false) {
         discountPercent = Number(couponSnap.data().discountPercent || 0)
-      } else if (code === "PADDLER10") {
-        discountPercent = 10
       }
 
       if (discountPercent <= 0) {
         setCouponDiscount(0)
-        alert("Invalid or inactive coupon code.")
+        if (localStorage.getItem(SAVED_COUPON_KEY) === code) {
+          localStorage.removeItem(SAVED_COUPON_KEY)
+        }
+        if (!options?.silent) alert("Invalid or inactive coupon code.")
         return
       }
 
+      if (await hasUserAlreadyUsedCoupon(code)) {
+        setCouponDiscount(0)
+        if (localStorage.getItem(SAVED_COUPON_KEY) === code) {
+          localStorage.removeItem(SAVED_COUPON_KEY)
+        }
+        if (!options?.silent) {
+          alert("This coupon has already been used on your account.")
+        }
+        return
+      }
+
+      setCoupon(code)
+      localStorage.setItem(SAVED_COUPON_KEY, code)
       setCouponDiscount(Math.round(totalPrice * (discountPercent / 100)))
-      alert("Coupon applied successfully!")
+      if (!options?.silent) alert("Coupon applied successfully!")
     } catch (error) {
       console.error("COUPON APPLY ERROR:", error)
       setCouponDiscount(0)
-      alert("Unable to check coupon right now.")
+      if (!options?.silent) alert("Unable to check coupon right now.")
     }
   }
+
+  useEffect(() => {
+    if (totalPrice <= 0 || couponDiscount > 0) return
+
+    const savedCoupon = localStorage.getItem(SAVED_COUPON_KEY)?.trim().toUpperCase()
+    if (!savedCoupon) return
+    const applyKey = `${savedCoupon}-${totalPrice}`
+    if (autoAppliedCouponRef.current === applyKey) return
+
+    autoAppliedCouponRef.current = applyKey
+    setCoupon(savedCoupon)
+    applyCoupon(savedCoupon, { silent: true })
+  }, [totalPrice, couponDiscount])
 
   const handlePayment = async () => {
     if (items.length === 0) {
@@ -373,6 +444,16 @@ export default function CheckoutPage() {
         return
       }
 
+      const appliedCouponCode =
+        couponDiscount > 0 ? coupon.trim().toUpperCase() : ""
+
+      if (appliedCouponCode && (await hasUserAlreadyUsedCoupon(appliedCouponCode))) {
+        setCouponDiscount(0)
+        localStorage.removeItem(SAVED_COUPON_KEY)
+        alert("This coupon has already been used on your account.")
+        return
+      }
+
       const invoiceNumber = createInvoiceNumber()
 
       const orderRef = await addDoc(collection(db, "orders"), {
@@ -388,7 +469,7 @@ export default function CheckoutPage() {
         pricing: {
           subtotal: totalPrice,
           shipping,
-          couponCode: couponDiscount > 0 ? coupon.trim().toUpperCase() : null,
+          couponCode: appliedCouponCode || null,
           couponDiscount,
           total,
         },
@@ -495,7 +576,7 @@ export default function CheckoutPage() {
             }
 
             clearCart()
-            router.push("/orders")
+            router.push(`/thank-you?orderId=${encodeURIComponent(orderRef.id)}`)
           } catch (error) {
             console.error("RAZORPAY VERIFY CLIENT ERROR:", error)
             alert(
@@ -782,16 +863,13 @@ export default function CheckoutPage() {
                   />
 
                   <button
-                    onClick={applyCoupon}
+                    onClick={() => applyCoupon()}
                     className="bg-foreground text-background px-5 py-3 text-sm font-black"
                   >
                     APPLY
                   </button>
                 </div>
 
-                <p className="text-xs text-muted-foreground mt-2">
-                  Try demo coupon: PADDLER10
-                </p>
               </div>
 
               <div className="space-y-4 text-sm border-t border-border pt-5">

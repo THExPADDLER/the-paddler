@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
 
-export type UserRole = "admin" | "staff" | "influencer" | "customer"
+export type UserRole = "admin" | "staff" | "customer"
 
 const ADMIN_EMAILS = ["vp982761@gmail.com", "thexpaddler@gmail.com"]
 
@@ -15,9 +15,13 @@ export const syncUserProfile = async (
 ) => {
   const userRef = doc(db, "users", currentUser.uid)
   const existingSnap = await getDoc(userRef)
-  const existingRole = existingSnap.exists()
-    ? (existingSnap.data().role as UserRole | undefined)
+  const savedRole = existingSnap.exists()
+    ? (existingSnap.data().role as string | undefined)
     : undefined
+  const existingRole: UserRole | undefined =
+    savedRole === "admin" || savedRole === "staff" || savedRole === "customer"
+      ? savedRole
+      : undefined
   const email = currentUser.email || ""
   const resolvedRole =
     role || existingRole || (ADMIN_EMAILS.includes(email) ? "admin" : "customer")

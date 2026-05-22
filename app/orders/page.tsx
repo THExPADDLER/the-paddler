@@ -14,12 +14,21 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore"
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "@/app/providers/AuthProvider"
-import { db } from "@/lib/firebase"
+import { db, storage } from "@/lib/firebase"
 import type { CartItem } from "@/lib/cart-context"
+
+const returnReasons = [
+  "Size issue",
+  "Wrong product received",
+  "Damaged product received",
+  "Quality issue",
+  "Other",
+]
 
 type CustomerOrder = {
   id: string
@@ -49,6 +58,8 @@ type CustomerOrder = {
   }
   trackingId?: string
   createdAt: string
+  updatedAt?: string
+  deliveredAt?: string
   returnRequested?: boolean
 }
 
@@ -122,7 +133,7 @@ const formatStatus = (status: string) => {
 }
 
 const getStatusColor = (status: string) => {
-  if (status === "paid" || status === "success") return "text-green-400"
+  if (status === "paid" || status === "success" || status === "completed") return "text-green-400"
   if (status.includes("failed")) return "text-red-400"
   return "text-yellow-400"
 }
@@ -141,12 +152,31 @@ const getConnectorFill = (currentComplete: boolean, nextComplete: boolean) => {
   return "h-0"
 }
 
+const isReturnWindowOpen = (order: CustomerOrder) => {
+  if (order.status !== "delivered") return false
+
+  const deliveredAt = order.deliveredAt || order.updatedAt
+  if (!deliveredAt) return true
+
+  const deliveredDate = new Date(deliveredAt)
+  if (Number.isNaN(deliveredDate.getTime())) return true
+
+  const windowEndsAt = new Date(deliveredDate)
+  windowEndsAt.setDate(windowEndsAt.getDate() + 3)
+
+  return Date.now() <= windowEndsAt.getTime()
+}
+
 export default function OrdersPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [returningOrderId, setReturningOrderId] = useState<string | null>(null)
+  const [returnFormOrderId, setReturnFormOrderId] = useState<string | null>(null)
+  const [returnReason, setReturnReason] = useState("Size issue")
+  const [returnDescription, setReturnDescription] = useState("")
+  const [returnImage, setReturnImage] = useState<File | null>(null)
   const [checkingPaymentOrderId, setCheckingPaymentOrderId] = useState<string | null>(null)
   const [retryingPaymentOrderId, setRetryingPaymentOrderId] = useState<string | null>(null)
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
@@ -390,7 +420,7 @@ export default function OrdersPage() {
             }
 
             await fetchOrders()
-            alert("Payment successful. Your order is confirmed.")
+            router.push(`/thank-you?orderId=${encodeURIComponent(order.id)}`)
           } catch (error) {
             console.error("RAZORPAY RETRY VERIFY ERROR:", error)
             alert("Payment verification failed. Please contact support.")
@@ -438,15 +468,36 @@ export default function OrdersPage() {
       return
     }
 
-    const confirmed = window.confirm(
-      "Request return for this order? Our team will review it and contact you."
-    )
+    if (!isReturnWindowOpen(order)) {
+      alert("Returns and replacements are accepted only within 3 days of delivery.")
+      return
+    }
 
-    if (!confirmed) return
+    if (returnReason !== "Size issue") {
+      alert("Returns and replacements are currently accepted only for size issues.")
+      return
+    }
+
+    if (returnDescription.trim().length < 10) {
+      alert("Please enter a short return description.")
+      return
+    }
 
     setReturningOrderId(order.id)
 
     try {
+      let imageUrl = ""
+
+      if (returnImage) {
+        const extension = returnImage.name.split(".").pop() || "jpg"
+        const imageRef = ref(
+          storage,
+          `returns/${order.id}-${Date.now()}.${extension}`
+        )
+        await uploadBytes(imageRef, returnImage)
+        imageUrl = await getDownloadURL(imageRef)
+      }
+
       const response = await fetch("/api/shiprocket/return", {
         method: "POST",
         headers: {
@@ -456,7 +507,9 @@ export default function OrdersPage() {
           orderId: order.id,
           userId: user.uid,
           customerEmail: user.email || "",
-          reason: "Customer requested return from orders page",
+          reason: returnReason,
+          description: returnDescription.trim(),
+          imageUrl,
         }),
       })
       const data = await response.json()
@@ -473,6 +526,10 @@ export default function OrdersPage() {
             : item
         )
       )
+      setReturnFormOrderId(null)
+      setReturnReason("Size issue")
+      setReturnDescription("")
+      setReturnImage(null)
 
       alert(data.message || "Return request submitted successfully.")
     } catch (error) {
@@ -550,8 +607,8 @@ export default function OrdersPage() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-background text-foreground pt-24 pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="orders-stage min-h-screen bg-background text-foreground pt-24 pb-16">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-10">
             <p className="text-xs tracking-[0.35em] text-muted-foreground mb-3">
               CUSTOMER DASHBOARD
@@ -602,6 +659,18 @@ export default function OrdersPage() {
                 const paymentFailed = paymentStatus === "failed"
                 const shipped = isOrderShipped(order)
                 const delivered = order.status === "delivered"
+                const returnRequested =
+                  order.returnRequested || order.status === "return_requested"
+                const canCancel =
+                  ![
+                    "cancelled",
+                    "shipped",
+                    "in_transit",
+                    "delivered",
+                    "return_requested",
+                  ].includes(order.status)
+                const showReturn = delivered || returnRequested
+                const returnWindowOpen = isReturnWindowOpen(order)
                 const timelineSteps = [
                   {
                     title: "Order Placed",
@@ -648,9 +717,11 @@ export default function OrdersPage() {
                 return (
                   <div
                     key={order.id}
-                    className="border border-border bg-secondary/20 overflow-hidden"
+                    className="order-card group relative overflow-hidden border border-white/10 bg-black/70 shadow-[0_28px_90px_rgba(0,0,0,0.35)]"
                   >
-                    <div className="border-b border-border px-6 py-4 grid sm:grid-cols-4 gap-4">
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_58%)] opacity-0 transition duration-700 group-hover:translate-x-16 group-hover:opacity-100" />
+
+                    <div className="relative border-b border-white/10 px-6 py-5 grid sm:grid-cols-4 gap-4 bg-white/[0.02]">
                       <div>
                         <p className="text-xs text-muted-foreground">ORDER ID</p>
                         <p className="font-bold break-all">#{order.id}</p>
@@ -682,16 +753,16 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div className="p-6">
+                    <div className="relative p-6">
                       <div className="flex flex-col lg:flex-row gap-8">
                         <div className="flex gap-5 flex-1">
                           {firstItem && (
-                            <div className="relative w-28 h-32 bg-neutral-900 overflow-hidden flex-shrink-0">
+                            <div className="relative w-28 h-32 bg-neutral-900 overflow-hidden flex-shrink-0 border border-white/10 shadow-[0_18px_45px_rgba(0,0,0,0.45)]">
                               <Image
                                 src={firstItem.image}
                                 alt={firstItem.name}
                                 fill
-                                className="object-cover"
+                                className="object-cover transition duration-500 group-hover:scale-110"
                               />
                             </div>
                           )}
@@ -720,7 +791,7 @@ export default function OrdersPage() {
                         <div className="lg:w-[420px]">
                           <h3 className="font-bold mb-6">TRACK ORDER</h3>
 
-                          <div className="space-y-0">
+                          <div className="order-timeline-panel space-y-0 border border-white/10 bg-white/[0.025] p-5">
                             {timelineSteps.map((step, index) => {
                               const Icon = step.icon
                               const nextStep = timelineSteps[index + 1]
@@ -798,7 +869,7 @@ export default function OrdersPage() {
                           <div className="flex flex-wrap gap-3 mt-8">
                             <Link
                               href={`/invoice/${order.id}`}
-                              className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary"
+                              className="px-5 py-3 border border-white/15 text-sm font-bold hover:bg-white/10"
                             >
                               DOWNLOAD INVOICE
                             </Link>
@@ -806,7 +877,7 @@ export default function OrdersPage() {
                             {(order.shipment?.awb || order.trackingId) && (
                               <Link
                                 href={`/tracking/${order.id}`}
-                                className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary"
+                                className="px-5 py-3 border border-white/15 text-sm font-bold hover:bg-white/10"
                               >
                                 TRACK SHIPMENT
                               </Link>
@@ -818,7 +889,7 @@ export default function OrdersPage() {
                                   type="button"
                                   onClick={() => checkPaymentStatus(order)}
                                   disabled={checkingPaymentOrderId === order.id}
-                                  className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  className="px-5 py-3 border border-white/15 text-sm font-bold hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   {checkingPaymentOrderId === order.id
                                     ? "CHECKING..."
@@ -841,45 +912,122 @@ export default function OrdersPage() {
                                 </button>
                               )}
 
-                            <button
-                              type="button"
-                              onClick={() => requestReturn(order)}
-                              disabled={
-                                returningOrderId === order.id ||
-                                order.payment?.status !== "success" ||
-                                order.returnRequested ||
-                                order.status === "return_requested" ||
-                                order.status !== "delivered"
-                              }
-                              className="px-5 py-3 border border-border text-sm font-bold hover:bg-secondary transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                              {order.returnRequested ||
-                              order.status === "return_requested"
-                                ? "RETURN REQUESTED"
-                                : returningOrderId === order.id
-                                ? "REQUESTING..."
-                                : "RETURN"}
-                            </button>
+                            {showReturn && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReturnFormOrderId((current) =>
+                                      current === order.id ? null : order.id
+                                    )
+                                    setReturnReason("Size issue")
+                                    setReturnDescription("")
+                                    setReturnImage(null)
+                                  }}
+                                  disabled={
+                                    returningOrderId === order.id ||
+                                    order.payment?.status !== "success" ||
+                                    returnRequested ||
+                                    !delivered ||
+                                    !returnWindowOpen
+                                  }
+                                  className="px-5 py-3 border border-white/15 text-sm font-bold hover:bg-white/10 transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                  {returnRequested
+                                    ? "RETURN REQUESTED"
+                                    : returningOrderId === order.id
+                                    ? "REQUESTING..."
+                                    : returnWindowOpen
+                                    ? "RETURN"
+                                    : "RETURN CLOSED"}
+                                </button>
 
-                            <button
-                              type="button"
-                              onClick={() => cancelOrder(order)}
-                              disabled={
-                                cancellingOrderId === order.id ||
-                                order.status === "cancelled" ||
-                                ["shipped", "in_transit", "delivered"].includes(
-                                  order.status
-                                )
-                              }
-                              className="px-5 py-3 border border-border text-sm font-bold text-red-400 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              {order.status === "cancelled"
-                                ? "CANCELLED"
-                                : cancellingOrderId === order.id
-                                ? "CANCELLING..."
-                                : "CANCEL NOW"}
-                            </button>
+                                {returnFormOrderId === order.id && (
+                                  <div className="w-full border border-white/15 bg-background/70 p-4">
+                                    <p className="text-sm font-black">
+                                      RETURN REQUEST
+                                    </p>
+                                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                      Returns are accepted only for size issues within 3 days of delivery. Product must be unused, unwashed, and in original packaging.
+                                    </p>
+
+                                    <div className="mt-4 grid gap-3">
+                                      <select
+                                        value={returnReason}
+                                        onChange={(event) =>
+                                          setReturnReason(event.target.value)
+                                        }
+                                        className="w-full border border-border bg-background px-4 py-3 text-sm outline-none"
+                                      >
+                                        {returnReasons.map((reason) => (
+                                          <option key={reason} value={reason}>
+                                            {reason}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <div>
+                                        <textarea
+                                          value={returnDescription}
+                                          maxLength={1000}
+                                          onChange={(event) =>
+                                            setReturnDescription(event.target.value)
+                                          }
+                                          placeholder="Describe your return request"
+                                          className="min-h-32 w-full resize-none border border-border bg-background px-4 py-3 text-sm outline-none"
+                                        />
+                                        <p className="mt-1 text-right text-xs text-muted-foreground">
+                                          {returnDescription.length}/1000
+                                        </p>
+                                      </div>
+
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(event) =>
+                                          setReturnImage(event.target.files?.[0] || null)
+                                        }
+                                        className="w-full border border-border bg-background px-4 py-3 text-sm"
+                                      />
+
+                                      <div className="flex flex-wrap gap-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => requestReturn(order)}
+                                          disabled={returningOrderId === order.id}
+                                          className="bg-foreground px-5 py-3 text-sm font-black text-background disabled:opacity-50"
+                                        >
+                                          {returningOrderId === order.id
+                                            ? "SUBMITTING..."
+                                            : "SUBMIT RETURN"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setReturnFormOrderId(null)}
+                                          className="border border-border px-5 py-3 text-sm font-black"
+                                        >
+                                          CANCEL
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {canCancel && (
+                              <button
+                                type="button"
+                                onClick={() => cancelOrder(order)}
+                                disabled={cancellingOrderId === order.id}
+                                className="px-5 py-3 border border-red-500/30 text-sm font-bold text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {cancellingOrderId === order.id
+                                  ? "CANCELLING..."
+                                  : "CANCEL NOW"}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

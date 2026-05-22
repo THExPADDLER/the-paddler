@@ -130,7 +130,9 @@ const getShiprocketToken = async (forceRefresh = false) => {
 
   if (!response.ok || !data?.token) {
     console.error("SHIPROCKET AUTH ERROR:", data)
-    throw new Error("Unable to authenticate with Shiprocket.")
+    throw new Error(
+      data?.message || data?.error || "Unable to authenticate with Shiprocket."
+    )
   }
 
   tokenCache = {

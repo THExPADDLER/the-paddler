@@ -1,4 +1,4 @@
-import { after, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import crypto from "crypto"
 import {
   collection,
@@ -127,6 +127,9 @@ const syncInvoicePayment = async (orderId: string) => {
 }
 
 const runSuccessSideEffects = async (orderId: string) => {
+  let inventoryError: string | null = null
+  let shipmentError: string | null = null
+
   try {
     const orderRef = doc(serverDb, "orders", orderId)
     const orderSnap = await getDoc(orderRef)
@@ -142,11 +145,12 @@ const runSuccessSideEffects = async (orderId: string) => {
     }
   } catch (error) {
     console.error("RAZORPAY INVENTORY ERROR:", { orderId, error })
+    inventoryError =
+      error instanceof Error
+        ? error.message
+        : "Unable to deduct shared inventory."
     await updateDoc(doc(serverDb, "orders", orderId), {
-      inventoryError:
-        error instanceof Error
-          ? error.message
-          : "Unable to deduct shared inventory.",
+      inventoryError,
       updatedAt: new Date().toISOString(),
     })
   }
@@ -155,13 +159,19 @@ const runSuccessSideEffects = async (orderId: string) => {
     await createShiprocketShipmentForOrder(orderId)
   } catch (error) {
     console.error("RAZORPAY SHIPROCKET ERROR:", { orderId, error })
+    shipmentError =
+      error instanceof Error
+        ? error.message
+        : "Unable to create Shiprocket shipment."
     await updateDoc(doc(serverDb, "orders", orderId), {
-      shipmentError:
-        error instanceof Error
-          ? error.message
-          : "Unable to create Shiprocket shipment.",
+      shipmentError,
       updatedAt: new Date().toISOString(),
     })
+  }
+
+  return {
+    inventoryError,
+    shipmentError,
   }
 }
 
@@ -217,13 +227,14 @@ export async function POST(request: Request) {
     })
 
     await syncInvoicePayment(orderId)
-    after(() => runSuccessSideEffects(orderId))
+    const sideEffects = await runSuccessSideEffects(orderId)
 
     return NextResponse.json({
       ok: true,
       orderId,
       paymentStatus: "success",
-      shipmentQueued: true,
+      shipmentQueued: !sideEffects.shipmentError,
+      ...sideEffects,
     })
   } catch (error) {
     console.error("RAZORPAY VERIFY ERROR:", error)

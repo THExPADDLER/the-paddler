@@ -62,6 +62,35 @@ const formatStatus = (status = "pending") =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ")
 
+const getAdminStatusColor = (status = "pending") => {
+  const normalizedStatus = status.toLowerCase()
+  if (["paid", "success", "completed", "delivered"].includes(normalizedStatus)) {
+    return "text-green-400"
+  }
+  if (normalizedStatus.includes("failed") || normalizedStatus === "cancelled") {
+    return "text-red-400"
+  }
+  return "text-yellow-400"
+}
+
+const fulfillmentStages = ["paid", "processing", "shipped", "in_transit", "delivered"]
+
+const getFulfillmentStage = (status = "paid") => {
+  const index = fulfillmentStages.indexOf(status)
+  return index >= 0 ? index : 0
+}
+
+const canMoveToStatus = (order: AdminOrder, nextStatus: string, isPaid: boolean) => {
+  if (!isPaid || order.status === "cancelled" || order.status === "delivered") {
+    return false
+  }
+
+  return fulfillmentStages.indexOf(nextStatus) === getFulfillmentStage(order.status) + 1
+}
+
+const canCancelOrder = (order: AdminOrder) =>
+  !["cancelled", "shipped", "in_transit", "delivered"].includes(order.status || "")
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,6 +100,7 @@ export default function AdminOrdersPage() {
   const [deductingInventoryId, setDeductingInventoryId] = useState<string | null>(null)
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [syncingShipmentId, setSyncingShipmentId] = useState<string | null>(null)
+  const [creatingShipmentId, setCreatingShipmentId] = useState<string | null>(null)
 
   const fetchOrders = async () => {
     try {
@@ -104,14 +134,25 @@ export default function AdminOrdersPage() {
       return
     }
 
+    if (!canMoveToStatus(order, status, true)) {
+      alert("Please update order status step by step. Direct jumping is not allowed.")
+      return
+    }
+
     const orderId = order.id
     setUpdatingId(orderId)
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
+      const now = new Date().toISOString()
+      const statusFields: Record<string, string> = {
         status,
-        updatedAt: new Date().toISOString(),
-      })
+        updatedAt: now,
+      }
+
+      if (status === "shipped") statusFields.shippedAt = now
+      if (status === "delivered") statusFields.deliveredAt = now
+
+      await updateDoc(doc(db, "orders", orderId), statusFields)
       await fetchOrders()
     } catch (error) {
       console.error("ORDER STATUS UPDATE ERROR:", error)
@@ -252,6 +293,41 @@ export default function AdminOrdersPage() {
       alert("Unable to sync Shiprocket tracking.")
     } finally {
       setSyncingShipmentId(null)
+    }
+  }
+
+  const createShiprocketOrder = async (order: AdminOrder) => {
+    if (order.payment?.status !== "success") {
+      alert("Payment is not successful yet.")
+      return
+    }
+
+    setCreatingShipmentId(order.id)
+
+    try {
+      const response = await fetch("/api/shiprocket/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+        }),
+      })
+      const data = await response.json()
+
+      if (!response.ok || !data?.ok) {
+        alert(data?.message || "Unable to create Shiprocket order.")
+        return
+      }
+
+      await fetchOrders()
+      alert("Shiprocket order created successfully.")
+    } catch (error) {
+      console.error("ADMIN SHIPROCKET CREATE ERROR:", error)
+      alert("Unable to create Shiprocket order.")
+    } finally {
+      setCreatingShipmentId(null)
     }
   }
 
@@ -412,6 +488,11 @@ export default function AdminOrdersPage() {
                   const firstItem = order.items?.[0]
                   const paymentStatus = order.payment?.status || "pending"
                   const isPaid = paymentStatus === "success"
+                  const canSetProcessing = canMoveToStatus(order, "processing", isPaid)
+                  const canSetShipped = canMoveToStatus(order, "shipped", isPaid)
+                  const canSetTransit = canMoveToStatus(order, "in_transit", isPaid)
+                  const canSetDelivered = canMoveToStatus(order, "delivered", isPaid)
+                  const showCancel = canCancelOrder(order)
                   return (
                     <div
                       key={order.id}
@@ -485,7 +566,7 @@ export default function AdminOrdersPage() {
                       <div className="mt-6 border-t border-border pt-6 grid lg:grid-cols-3 gap-6">
                         <div>
                           <p className="text-xs text-muted-foreground mb-2">STATUS</p>
-                          <p className="font-black text-yellow-400">
+                          <p className={`font-black ${getAdminStatusColor(order.status)}`}>
                             {formatStatus(order.status)}
                           </p>
                         </div>
@@ -541,7 +622,7 @@ export default function AdminOrdersPage() {
                         <div className="flex flex-wrap gap-3">
                           <button
                             onClick={() => updateStatus(order, "processing")}
-                            disabled={updatingId === order.id || !isPaid}
+                            disabled={updatingId === order.id || !canSetProcessing}
                             className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary flex items-center gap-2 disabled:opacity-50"
                           >
                             <Clock3 className="w-4 h-4" />
@@ -550,7 +631,7 @@ export default function AdminOrdersPage() {
 
                           <button
                             onClick={() => updateStatus(order, "shipped")}
-                            disabled={updatingId === order.id || !isPaid}
+                            disabled={updatingId === order.id || !canSetShipped}
                             className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary flex items-center gap-2 disabled:opacity-50"
                           >
                             <Truck className="w-4 h-4" />
@@ -559,7 +640,7 @@ export default function AdminOrdersPage() {
 
                           <button
                             onClick={() => updateStatus(order, "in_transit")}
-                            disabled={updatingId === order.id || !isPaid}
+                            disabled={updatingId === order.id || !canSetTransit}
                             className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary flex items-center gap-2 disabled:opacity-50"
                           >
                             <Package className="w-4 h-4" />
@@ -568,7 +649,7 @@ export default function AdminOrdersPage() {
 
                           <button
                             onClick={() => updateStatus(order, "delivered")}
-                            disabled={updatingId === order.id || !isPaid}
+                            disabled={updatingId === order.id || !canSetDelivered}
                             className="px-4 py-3 bg-foreground text-background text-sm font-black hover:bg-foreground/90 flex items-center gap-2 disabled:opacity-50"
                           >
                             <CheckCircle2 className="w-4 h-4" />
@@ -643,24 +724,33 @@ export default function AdminOrdersPage() {
                             </>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => cancelOrder(order)}
-                            disabled={
-                              cancellingId === order.id ||
-                              order.status === "cancelled" ||
-                              ["shipped", "in_transit", "delivered"].includes(
-                                order.status || ""
-                              )
-                            }
-                            className="px-4 py-3 border border-border text-sm font-black text-red-400 hover:bg-secondary disabled:opacity-50"
-                          >
-                            {order.status === "cancelled"
-                              ? "Cancelled"
-                              : cancellingId === order.id
-                              ? "Cancelling..."
-                              : "Cancel Now"}
-                          </button>
+                          {isPaid &&
+                            !order.shipment?.awb &&
+                            !order.shipment?.shipmentId && (
+                              <button
+                                type="button"
+                                onClick={() => createShiprocketOrder(order)}
+                                disabled={creatingShipmentId === order.id}
+                                className="px-4 py-3 border border-border text-sm font-black hover:bg-secondary disabled:opacity-50"
+                              >
+                                {creatingShipmentId === order.id
+                                  ? "Creating..."
+                                  : "Create Shiprocket"}
+                              </button>
+                            )}
+
+                          {showCancel && (
+                            <button
+                              type="button"
+                              onClick={() => cancelOrder(order)}
+                              disabled={cancellingId === order.id}
+                              className="px-4 py-3 border border-border text-sm font-black text-red-400 hover:bg-secondary disabled:opacity-50"
+                            >
+                              {cancellingId === order.id
+                                ? "Cancelling..."
+                                : "Cancel Now"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
