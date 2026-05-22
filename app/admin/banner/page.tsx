@@ -10,16 +10,32 @@ import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
 import { db, storage } from "@/lib/firebase"
 
+type HomepageForm = {
+  topBanner: string
+  heroHeadline: string
+  heroSubheading: string
+  heroImage: string
+  heroSlides: string[]
+  countdownAt: string
+  countdownTitle: string
+}
+
+const emptySlides = ["", "", ""]
+
 export default function AdminBannerPage() {
   const [saving, setSaving] = useState(false)
-  const [heroImageFile, setHeroImageFile] = useState<File | null>(null)
-  const [heroImagePreview, setHeroImagePreview] = useState("")
-  const [form, setForm] = useState({
-    topBanner:
-      "NEW DROP LIVE • SECURE ONLINE PAYMENTS • FREE SHIPPING ABOVE ₹1500",
+  const [heroSlideFiles, setHeroSlideFiles] = useState<Array<File | null>>([
+    null,
+    null,
+    null,
+  ])
+  const [heroSlidePreviews, setHeroSlidePreviews] = useState(emptySlides)
+  const [form, setForm] = useState<HomepageForm>({
+    topBanner: "NEW DROP LIVE - SECURE ONLINE PAYMENTS - FREE SHIPPING ABOVE RS 1500",
     heroHeadline: "",
     heroSubheading: "",
     heroImage: "",
+    heroSlides: [],
     countdownAt: "",
     countdownTitle: "",
   })
@@ -30,7 +46,16 @@ export default function AdminBannerPage() {
         const snap = await getDoc(doc(db, "siteContent", "homepage"))
 
         if (snap.exists()) {
-          setForm((current) => ({ ...current, ...snap.data() }))
+          const data = snap.data() as Partial<HomepageForm>
+          setForm((current) => ({
+            ...current,
+            ...data,
+            heroSlides: Array.isArray(data.heroSlides)
+              ? data.heroSlides.slice(0, 3)
+              : data.heroImage
+                ? [data.heroImage]
+                : [],
+          }))
         }
       } catch (error) {
         console.error("BANNER CONTENT FETCH ERROR:", error)
@@ -40,7 +65,15 @@ export default function AdminBannerPage() {
     fetchContent()
   }, [])
 
-  const handleHeroImageSelect = (file: File | null) => {
+  useEffect(() => {
+    return () => {
+      heroSlidePreviews.forEach((preview) => {
+        if (preview) URL.revokeObjectURL(preview)
+      })
+    }
+  }, [heroSlidePreviews])
+
+  const handleHeroImageSelect = (slot: number, file: File | null) => {
     if (!file) return
 
     if (!file.type.startsWith("image/")) {
@@ -53,51 +86,82 @@ export default function AdminBannerPage() {
       return
     }
 
-    if (heroImagePreview) {
-      URL.revokeObjectURL(heroImagePreview)
+    if (heroSlidePreviews[slot]) {
+      URL.revokeObjectURL(heroSlidePreviews[slot])
     }
 
-    setHeroImageFile(file)
-    setHeroImagePreview(URL.createObjectURL(file))
+    setHeroSlideFiles((current) =>
+      current.map((item, index) => (index === slot ? file : item))
+    )
+    setHeroSlidePreviews((current) =>
+      current.map((item, index) =>
+        index === slot ? URL.createObjectURL(file) : item
+      )
+    )
   }
 
-  const clearHeroImage = () => {
-    if (heroImagePreview) {
-      URL.revokeObjectURL(heroImagePreview)
+  const clearHeroImage = (slot: number) => {
+    if (heroSlidePreviews[slot]) {
+      URL.revokeObjectURL(heroSlidePreviews[slot])
     }
 
-    setHeroImageFile(null)
-    setHeroImagePreview("")
+    setHeroSlideFiles((current) =>
+      current.map((item, index) => (index === slot ? null : item))
+    )
+    setHeroSlidePreviews((current) =>
+      current.map((item, index) => (index === slot ? "" : item))
+    )
     setForm((current) => ({
       ...current,
-      heroImage: "",
+      heroImage: slot === 0 ? "" : current.heroImage,
+      heroSlides: [...emptySlides].map((_, index) =>
+        index === slot ? "" : current.heroSlides[index] || ""
+      ),
     }))
+  }
+
+  const uploadHeroSlides = async () => {
+    const heroSlides = [...emptySlides].map((_, index) => form.heroSlides[index] || "")
+
+    for (const [index, file] of heroSlideFiles.entries()) {
+      if (!file) continue
+
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
+      const imageRef = ref(
+        storage,
+        `homepage/hero-slide-${index + 1}-${Date.now()}.${extension}`
+      )
+
+      await uploadBytes(imageRef, file, {
+        contentType: file.type,
+      })
+
+      heroSlides[index] = await getDownloadURL(imageRef)
+    }
+
+    return heroSlides
   }
 
   const saveContent = async (section: string) => {
     setSaving(true)
 
     try {
+      let heroSlides = [...emptySlides].map((_, index) => form.heroSlides[index] || "")
       let heroImage = form.heroImage
 
-      if (section === "Hero" && heroImageFile) {
-        const extension =
-          heroImageFile.name.split(".").pop()?.toLowerCase() || "jpg"
-        const imageRef = ref(
-          storage,
-          `homepage/hero-${Date.now()}.${extension}`
-        )
+      if (section === "Hero") {
+        heroSlides = await uploadHeroSlides()
+        heroImage = heroSlides.find(Boolean) || heroImage
 
-        await uploadBytes(imageRef, heroImageFile, {
-          contentType: heroImageFile.type,
+        heroSlidePreviews.forEach((preview) => {
+          if (preview) URL.revokeObjectURL(preview)
         })
-
-        heroImage = await getDownloadURL(imageRef)
-        setHeroImageFile(null)
-        setHeroImagePreview("")
+        setHeroSlideFiles([null, null, null])
+        setHeroSlidePreviews(emptySlides)
         setForm((current) => ({
           ...current,
           heroImage,
+          heroSlides,
         }))
       }
 
@@ -106,6 +170,7 @@ export default function AdminBannerPage() {
         {
           ...form,
           heroImage,
+          heroSlides,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -118,6 +183,9 @@ export default function AdminBannerPage() {
       setSaving(false)
     }
   }
+
+  const currentSlideImage = (slot: number) =>
+    heroSlidePreviews[slot] || form.heroSlides[slot] || ""
 
   return (
     <ProtectedRoute adminOnly>
@@ -140,7 +208,7 @@ export default function AdminBannerPage() {
                 </h2>
 
                 <textarea
-                  placeholder="NEW DROP LIVE • SECURE ONLINE PAYMENTS"
+                  placeholder="NEW DROP LIVE - SECURE ONLINE PAYMENTS"
                   className="w-full min-h-28 bg-background border border-border px-4 py-4 outline-none text-white resize-none"
                   value={form.topBanner}
                   onChange={(event) =>
@@ -163,10 +231,15 @@ export default function AdminBannerPage() {
               </section>
 
               <section className="border border-border bg-secondary/20 p-6 sm:p-8">
-                <h2 className="text-2xl font-black flex items-center gap-2 mb-6">
+                <h2 className="text-2xl font-black flex items-center gap-2 mb-2">
                   <ImageIcon className="w-5 h-5" />
-                  HERO SECTION
+                  HERO SLIDER
                 </h2>
+
+                <p className="mb-6 text-sm text-muted-foreground">
+                  Upload 3 homepage banner images. The landing page slides from
+                  right to left every 5 seconds.
+                </p>
 
                 <div className="grid gap-5">
                   <input
@@ -193,70 +266,81 @@ export default function AdminBannerPage() {
                     }
                   />
 
-                  <div className="border border-border bg-background p-5">
-                    <p className="text-xs tracking-[0.3em] text-muted-foreground mb-4">
-                      HERO IMAGE
-                    </p>
+                  <div className="grid gap-5 lg:grid-cols-3">
+                    {[0, 1, 2].map((slot) => {
+                      const image = currentSlideImage(slot)
 
-                    {heroImagePreview || form.heroImage ? (
-                      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr] lg:items-center">
-                        <div className="relative aspect-[16/9] overflow-hidden bg-neutral-900 border border-border">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={heroImagePreview || form.heroImage}
-                            alt="Hero preview"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Image selected. Upload another file if you want to replace it before saving.
+                      return (
+                        <div
+                          key={slot}
+                          className="border border-border bg-background p-4"
+                        >
+                          <p className="text-xs tracking-[0.25em] text-muted-foreground mb-4">
+                            BANNER {slot + 1}
                           </p>
 
-                          <div className="flex flex-wrap gap-3">
-                            <label className="cursor-pointer border border-border px-5 py-3 text-sm font-black hover:bg-secondary">
-                              CHANGE IMAGE
+                          {image ? (
+                            <div className="space-y-4">
+                              <div className="relative aspect-[16/9] overflow-hidden bg-neutral-900 border border-border">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={image}
+                                  alt={`Hero banner ${slot + 1}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+
+                              <div className="flex flex-wrap gap-3">
+                                <label className="cursor-pointer border border-border px-4 py-3 text-xs font-black hover:bg-secondary">
+                                  CHANGE
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(event) =>
+                                      handleHeroImageSelect(
+                                        slot,
+                                        event.target.files?.[0] || null
+                                      )
+                                    }
+                                  />
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => clearHeroImage(slot)}
+                                  className="border border-border px-4 py-3 text-xs font-black text-red-400 hover:bg-secondary flex items-center gap-2"
+                                >
+                                  <X className="w-4 h-4" />
+                                  REMOVE
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label className="flex min-h-48 cursor-pointer flex-col items-center justify-center border border-dashed border-border bg-secondary/20 px-4 py-8 text-center hover:bg-secondary/40">
+                              <ImagePlus className="mb-4 h-9 w-9 text-muted-foreground" />
+                              <span className="text-sm font-black text-foreground">
+                                UPLOAD IMAGE
+                              </span>
+                              <span className="mt-2 text-xs text-muted-foreground">
+                                JPG, PNG or WebP under 8MB
+                              </span>
                               <input
                                 type="file"
                                 accept="image/*"
                                 className="hidden"
                                 onChange={(event) =>
-                                  handleHeroImageSelect(event.target.files?.[0] || null)
+                                  handleHeroImageSelect(
+                                    slot,
+                                    event.target.files?.[0] || null
+                                  )
                                 }
                               />
                             </label>
-
-                            <button
-                              type="button"
-                              onClick={clearHeroImage}
-                              className="border border-border px-5 py-3 text-sm font-black text-red-400 hover:bg-secondary flex items-center gap-2"
-                            >
-                              <X className="w-4 h-4" />
-                              REMOVE
-                            </button>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <label className="flex min-h-64 cursor-pointer flex-col items-center justify-center border border-dashed border-border bg-secondary/20 px-5 py-8 text-center hover:bg-secondary/40">
-                        <ImagePlus className="mb-4 h-10 w-10 text-muted-foreground" />
-                        <span className="text-sm font-black text-foreground">
-                          UPLOAD HERO IMAGE
-                        </span>
-                        <span className="mt-2 text-sm text-muted-foreground">
-                          Use a wide JPG, PNG or WebP under 8MB
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(event) =>
-                            handleHeroImageSelect(event.target.files?.[0] || null)
-                          }
-                        />
-                      </label>
-                    )}
+                      )
+                    })}
                   </div>
 
                   <button
@@ -266,7 +350,7 @@ export default function AdminBannerPage() {
                     className="bg-foreground text-background px-6 py-3 font-black flex items-center justify-center gap-2 disabled:opacity-60"
                   >
                     <Save className="w-4 h-4" />
-                    SAVE HERO
+                    SAVE HERO SLIDER
                   </button>
                 </div>
               </section>

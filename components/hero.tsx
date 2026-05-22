@@ -1,32 +1,97 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { doc, getDoc } from "firebase/firestore"
+
+import { db } from "@/lib/firebase"
+
+const fallbackSlides = [
+  "/images/hero/hero-desktop.webp",
+  "/images/hero/hero-desktop.webp",
+  "/images/hero/hero-desktop.webp",
+]
+
+const mobileFallback = "/images/hero/hero-mobile.webp"
+
+type HomepageContent = {
+  heroSlides?: string[]
+}
 
 export function Hero() {
+  const [slides, setSlides] = useState(fallbackSlides)
+  const [activeSlide, setActiveSlide] = useState(0)
+
+  useEffect(() => {
+    const fetchHeroSlides = async () => {
+      try {
+        const snap = await getDoc(doc(db, "siteContent", "homepage"))
+
+        if (!snap.exists()) return
+
+        const content = snap.data() as HomepageContent
+        const uploadedSlides = Array.isArray(content.heroSlides)
+          ? content.heroSlides.filter(Boolean).slice(0, 3)
+          : []
+
+        if (uploadedSlides.length > 0) {
+          setSlides(uploadedSlides)
+        }
+      } catch (error) {
+        console.error("HERO SLIDES FETCH ERROR:", error)
+      }
+    }
+
+    fetchHeroSlides()
+  }, [])
+
+  useEffect(() => {
+    if (slides.length <= 1) return
+
+    const interval = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slides.length)
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [slides.length])
+
+  useEffect(() => {
+    if (activeSlide >= slides.length) {
+      setActiveSlide(0)
+    }
+  }, [activeSlide, slides.length])
+
   return (
     <section className="relative min-h-screen overflow-hidden flex items-end">
 
       {/* Background */}
       <div className="absolute inset-0 z-0">
-        <Image
-          src="/images/hero/hero-mobile.webp"
-          alt="THE PADDLER Hero"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-center sm:hidden"
-        />
-
-        <Image
-          src="/images/hero/hero-desktop.webp"
-          alt="THE PADDLER Hero"
-          fill
-          priority
-          sizes="100vw"
-          className="hidden object-cover object-center sm:block"
-        />
+        <div
+          className="absolute inset-0 flex transition-transform duration-1000 ease-in-out"
+          style={{
+            width: `${slides.length * 100}%`,
+            transform: `translateX(-${activeSlide * (100 / slides.length)}%)`,
+          }}
+        >
+          {slides.map((slide, index) => (
+            <div
+              key={`${slide}-${index}`}
+              className="relative h-full shrink-0"
+              style={{ width: `${100 / slides.length}%` }}
+            >
+              <Image
+                src={slide || mobileFallback}
+                alt={`THE PADDLER Hero banner ${index + 1}`}
+                fill
+                priority={index === 0}
+                sizes="100vw"
+                className="object-cover object-center"
+              />
+            </div>
+          ))}
+        </div>
 
         {/* Overlays */}
         <div className="absolute inset-0 bg-black/45 sm:bg-black/35" />
@@ -113,6 +178,22 @@ export function Hero() {
                 </p>
               </div>
 
+            </div>
+
+            <div className="mt-8 flex gap-2">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-label={`Show banner ${index + 1}`}
+                  onClick={() => setActiveSlide(index)}
+                  className={`h-1.5 transition-all ${
+                    index === activeSlide
+                      ? "w-10 bg-white"
+                      : "w-5 bg-white/35 hover:bg-white/60"
+                  }`}
+                />
+              ))}
             </div>
 
           </div>
