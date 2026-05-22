@@ -13,6 +13,7 @@ import {
   Star,
   Boxes,
   BadgePercent,
+  FileDown,
 } from "lucide-react"
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 
@@ -42,35 +43,6 @@ type OrderRecord = {
     status?: string
   }
 }
-
-type ResetTarget = "users" | "orders_revenue" | "coupon_used" | "all"
-
-const resetOptions: Array<{
-  target: ResetTarget
-  label: string
-  description: string
-}> = [
-  {
-    target: "users",
-    label: "Reset Users",
-    description: "Clears Firestore user profiles. Firebase Auth accounts stay safe.",
-  },
-  {
-    target: "orders_revenue",
-    label: "Reset Orders and Revenue",
-    description: "Clears orders, invoices and returns. Revenue becomes zero.",
-  },
-  {
-    target: "coupon_used",
-    label: "Reset Coupon Used",
-    description: "Clears coupon usage from order records while keeping coupon codes.",
-  },
-  {
-    target: "all",
-    label: "Reset All",
-    description: "Clears users, orders, invoices, returns and coupon usage.",
-  },
-]
 
 const emptyStats: DashboardStats = {
   totalOrders: 0,
@@ -119,7 +91,7 @@ const links = [
   {
     title: "Users",
     href: "/admin/users",
-    desc: "View customers, addresses and reset password.",
+    desc: "View customers, addresses and account details.",
     icon: Users,
     adminOnly: true,
   },
@@ -163,8 +135,10 @@ export default function AdminPage() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
   const [savingMaintenance, setSavingMaintenance] = useState(false)
-  const [resetMenuOpen, setResetMenuOpen] = useState(false)
-  const [resettingTarget, setResettingTarget] = useState<ResetTarget | null>(null)
+  const [reportMenuOpen, setReportMenuOpen] = useState(false)
+  const [reportFrom, setReportFrom] = useState("")
+  const [reportTo, setReportTo] = useState("")
+  const [downloadingReport, setDownloadingReport] = useState(false)
   const isAdmin = role === "admin"
   const isInfluencer = role === "influencer"
 
@@ -273,17 +247,14 @@ export default function AdminPage() {
     }
   }
 
-  const downloadBackupAndReset = async (target: ResetTarget) => {
-    const option = resetOptions.find((item) => item.target === target)
-    const confirmed = window.confirm(
-      `${option?.label || "Reset"}?\n\nA PDF backup will download first. After that, this data will be reset. Continue?`
-    )
-
-    if (!confirmed) return
-
-    setResettingTarget(target)
-
+  const downloadOrderReport = async () => {
     try {
+      if (reportFrom && reportTo && reportFrom > reportTo) {
+        alert("From date cannot be after To date.")
+        return
+      }
+
+      setDownloadingReport(true)
       const token = await auth.currentUser?.getIdToken()
 
       if (!token) {
@@ -291,31 +262,30 @@ export default function AdminPage() {
         return
       }
 
-      const backupResponse = await fetch("/api/admin/reset/backup", {
+      const reportResponse = await fetch("/api/admin/orders-report", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ target }),
+        body: JSON.stringify({
+          from: reportFrom || null,
+          to: reportTo || null,
+        }),
       })
 
-      if (!backupResponse.ok) {
-        const error = await backupResponse.json().catch(() => null)
-        alert(error?.message || "Unable to create backup PDF. Reset cancelled.")
+      if (!reportResponse.ok) {
+        const error = await reportResponse.json().catch(() => null)
+        alert(error?.message || "Unable to create report PDF.")
         return
       }
 
-      const backupBlob = await backupResponse.blob()
-      const fallbackName = `${new Intl.DateTimeFormat("en-IN", {
-        month: "long",
-        year: "numeric",
-      })
-        .format(new Date())
-        .replace(/\s+/g, "-")}-backup.pdf`
-      const fileName =
-        backupResponse.headers.get("X-Backup-Filename") || fallbackName
-      const url = URL.createObjectURL(backupBlob)
+      const reportBlob = await reportResponse.blob()
+      const fallbackName = `the-paddler-order-report-${
+        reportFrom || "start"
+      }-to-${reportTo || "today"}.pdf`
+      const fileName = reportResponse.headers.get("X-Report-Filename") || fallbackName
+      const url = URL.createObjectURL(reportBlob)
       const link = document.createElement("a")
       link.href = url
       link.download = fileName
@@ -323,30 +293,12 @@ export default function AdminPage() {
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-
-      const resetResponse = await fetch("/api/admin/reset", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ target, backupConfirmed: true }),
-      })
-      const data = await resetResponse.json()
-
-      if (!resetResponse.ok || !data?.ok) {
-        alert(data?.message || "Backup downloaded, but reset failed.")
-        return
-      }
-
-      await fetchStats()
-      setResetMenuOpen(false)
-      alert("Backup downloaded and reset completed.")
+      setReportMenuOpen(false)
     } catch (error) {
-      console.error("ADMIN RESET FLOW ERROR:", error)
-      alert("Unable to complete reset.")
+      console.error("ADMIN ORDER REPORT DOWNLOAD ERROR:", error)
+      alert("Unable to download report.")
     } finally {
-      setResettingTarget(null)
+      setDownloadingReport(false)
     }
   }
 
@@ -407,31 +359,65 @@ export default function AdminPage() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setResetMenuOpen((value) => !value)}
-                    disabled={Boolean(resettingTarget)}
+                    onClick={() => setReportMenuOpen((value) => !value)}
+                    disabled={downloadingReport}
                     className="px-6 py-3 text-sm font-black border border-border hover:bg-secondary transition-colors disabled:opacity-60"
                   >
-                    {resettingTarget ? "RESETTING..." : "RESET"}
+                    <span className="inline-flex items-center gap-2">
+                      <FileDown className="h-4 w-4" />
+                      {downloadingReport ? "DOWNLOADING..." : "DOWNLOAD REPORT"}
+                    </span>
                   </button>
 
-                  {resetMenuOpen && (
-                    <div className="absolute right-0 top-full z-20 mt-3 w-80 border border-border bg-background shadow-xl">
-                      {resetOptions.map((item) => (
+                  {reportMenuOpen && (
+                    <div className="absolute right-0 top-full z-20 mt-3 w-96 border border-border bg-background p-5 shadow-xl">
+                      <p className="text-sm font-black">ORDER REPORT PERIOD</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Select a date range. Leave both empty for all-time order report.
+                      </p>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <label className="text-xs font-black text-muted-foreground">
+                          FROM
+                          <input
+                            type="date"
+                            value={reportFrom}
+                            onChange={(event) => setReportFrom(event.target.value)}
+                            className="mt-2 w-full border border-border bg-background px-3 py-3 text-sm text-foreground outline-none"
+                          />
+                        </label>
+
+                        <label className="text-xs font-black text-muted-foreground">
+                          TO
+                          <input
+                            type="date"
+                            value={reportTo}
+                            onChange={(event) => setReportTo(event.target.value)}
+                            className="mt-2 w-full border border-border bg-background px-3 py-3 text-sm text-foreground outline-none"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-4 flex gap-3">
                         <button
-                          key={item.target}
                           type="button"
-                          onClick={() => downloadBackupAndReset(item.target)}
-                          disabled={Boolean(resettingTarget)}
-                          className="block w-full border-b border-border px-4 py-4 text-left hover:bg-secondary disabled:opacity-50"
+                          onClick={downloadOrderReport}
+                          disabled={downloadingReport}
+                          className="flex-1 bg-foreground px-4 py-3 text-sm font-black text-background disabled:opacity-60"
                         >
-                          <span className="block text-sm font-black">
-                            {item.label}
-                          </span>
-                          <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                            {item.description}
-                          </span>
+                          DOWNLOAD PDF
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReportFrom("")
+                            setReportTo("")
+                          }}
+                          className="border border-border px-4 py-3 text-sm font-black"
+                        >
+                          ALL TIME
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

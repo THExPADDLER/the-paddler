@@ -81,6 +81,7 @@
 
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
   }
 }
 
@@ -161,6 +162,54 @@ html {
 
 /* ===== GLOBAL UI MOTION ===== */
 
+.scroll-atmosphere {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 0.7;
+}
+
+.scroll-atmosphere__grid {
+  position: absolute;
+  inset: -20%;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at 50% 20%, black, transparent 68%);
+  will-change: transform;
+}
+
+.scroll-atmosphere__beam {
+  position: absolute;
+  width: 44vw;
+  height: 18vh;
+  filter: blur(50px);
+  opacity: 0.22;
+  will-change: transform;
+}
+
+.scroll-atmosphere__beam--one {
+  left: -14vw;
+  top: 22vh;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.scroll-atmosphere__beam--two {
+  right: -18vw;
+  top: 64vh;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+main,
+header,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
 @keyframes paddler-fade-up {
   from {
     opacity: 0;
@@ -171,6 +220,360 @@ html {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes hero-zoom-pan {
+  0% {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: scale(1.08) translate3d(-1.5%, -1%, 0);
+  }
+
+  100% {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes subtle-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+.hero-image-motion {
+  animation: hero-zoom-pan 12s ease-in-out infinite;
+  will-change: transform;
+}
+
+.hero-reveal {
+  animation: hero-reveal 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hero-reveal-delay-1 {
+  animation-delay: 120ms;
+}
+
+.hero-reveal-delay-2 {
+  animation-delay: 240ms;
+}
+
+.hero-reveal-delay-3 {
+  animation-delay: 360ms;
+}
+
+.hero-reveal-delay-4 {
+  animation-delay: 480ms;
+}
+
+.hero-cta {
+  box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+}
+
+.hero-cta:hover {
+  box-shadow: 0 18px 46px rgba(255, 255, 255, 0.18);
+}
+
+.hero-stat {
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  padding-left: 14px;
+  animation: subtle-float 4.8s ease-in-out infinite;
+}
+
+.hero-stat:nth-child(2) {
+  animation-delay: 450ms;
+}
+
+.hero-stat:nth-child(3) {
+  animation-delay: 900ms;
+}
+
+.product-card-pop {
+  transition:
+    transform 280ms ease,
+    filter 280ms ease;
+}
+
+.product-card-pop:hover {
+  transform: translateY(-8px);
+  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.16));
+}
+
+.count-card {
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+.count-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(218, 239, 48, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@keyframes featured-sweep {
+  0% {
+    transform: translateX(-35%) skewX(-18deg);
+  }
+
+  100% {
+    transform: translateX(135%) skewX(-18deg);
+  }
+}
+
+@keyframes featured-orbit {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(34px, -26px, 0) scale(1.08);
+  }
+}
+
+@keyframes featured-word-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(-24px, 12px, 0);
+  }
+}
+
+@keyframes featured-ticker {
+  from {
+    transform: translateX(-8%) rotate(-2deg);
+  }
+
+  to {
+    transform: translateX(-55%) rotate(-2deg);
+  }
+}
+
+@keyframes featured-ticker-reverse {
+  from {
+    transform: translateX(-50%) rotate(2deg);
+  }
+
+  to {
+    transform: translateX(0%) rotate(2deg);
+  }
+}
+
+@keyframes featured-static {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.featured-cursor-spotlight {
+  background:
+    radial-gradient(circle at var(--fx-x, 50%) var(--fx-y, 50%), rgba(218, 239, 48, 0.28), transparent 18rem),
+    radial-gradient(circle at calc(var(--fx-x, 50%) + 14%) calc(var(--fx-y, 50%) + 10%), rgba(255, 255, 255, 0.12), transparent 13rem);
+  transition: background 120ms ease-out;
+}
+
+.featured-noise {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.04) 0,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 5px
+    );
+  mix-blend-mode: screen;
+  animation: featured-static 1.4s steps(2, end) infinite;
+}
+
+.product-card-crazy::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  z-index: -1;
+  background: linear-gradient(135deg, rgba(218, 239, 48, 0.34), transparent 42%, rgba(255, 255, 255, 0.22));
+  opacity: 0;
+  filter: blur(18px);
+  transition: opacity 260ms ease;
+}
+
+.product-card-crazy:hover::before {
+  opacity: 1;
+}
+
+.brand-image-wrap {
+  transform: rotate(-1.5deg);
+  transition: transform 320ms ease;
+}
+
+.brand-story-stage:hover .brand-image-wrap {
+  transform: rotate(0deg) translateY(-6px);
+}
+
+.brand-story-image {
+  transform: scale(1.04);
+  transition: transform 900ms ease;
+}
+
+.brand-story-stage:hover .brand-story-image {
+  transform: scale(1.1);
+}
+
+.brand-stat {
+  transition:
+    transform 240ms ease,
+    border-color 240ms ease,
+    background-color 240ms ease;
+}
+
+.brand-stat:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+@media (max-width: 1023px) {
+  .brand-image-wrap {
+    transform: none;
+  }
+
+  .brand-story-stage:hover .brand-image-wrap {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes street-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) rotate(-1deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.street-frame {
+  animation: street-card-in 680ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition:
+    transform 320ms ease,
+    filter 320ms ease;
+}
+
+.street-frame:nth-child(even) {
+  transform: translateY(18px);
+}
+
+.street-frame:hover {
+  transform: translateY(-8px) scale(1.02);
+  filter: drop-shadow(0 26px 42px rgba(255, 255, 255, 0.08));
+}
+
+.street-gallery-stage,
+.newsletter-stage {
+  isolation: isolate;
+}
+
+.newsletter-form {
+  transition:
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    transform 240ms ease;
+}
+
+.newsletter-form:focus-within {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 22px 52px rgba(255, 255, 255, 0.08);
+}
+
+.product-page-stage {
+  isolation: isolate;
+}
+
+.product-page-stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 22%, rgba(255, 255, 255, 0.09), transparent 24rem),
+    radial-gradient(circle at 82% 38%, rgba(255, 255, 255, 0.06), transparent 22rem);
+  z-index: 0;
+}
+
+.product-gallery-stage {
+  animation: hero-reveal 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.product-main-image {
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+  transition:
+    transform 320ms ease,
+    box-shadow 320ms ease;
+}
+
+.product-gallery-stage:hover .product-main-image {
+  transform: translateY(-6px);
+  box-shadow: 0 42px 110px rgba(0, 0, 0, 0.62);
+}
+
+.product-info-panel {
+  animation: hero-reveal 720ms cubic-bezier(0.2, 0.8, 0.2, 1) 140ms both;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.product-control-box {
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+.product-control-box:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.product-promise {
+  transition:
+    transform 220ms ease,
+    color 220ms ease;
+}
+
+.product-promise:hover {
+  transform: translateY(-5px);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -198,6 +601,20 @@ html {
   button:hover,
   a:hover {
     transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-atmosphere,
+  .hero-image-motion,
+  .hero-reveal,
+  .hero-stat {
+    animation: none;
+  }
+
+  .scroll-atmosphere__grid,
+  .scroll-atmosphere__beam {
+    transform: none !important;
   }
 }
 

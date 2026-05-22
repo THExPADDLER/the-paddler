@@ -428,11 +428,22 @@ export default function ProductPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="product-page-stage min-h-screen bg-background text-foreground">
       <Header />
 
-      <main className="pt-24 pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <main className="relative overflow-hidden pt-24 pb-20">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:56px_56px]" />
+        <div className="pointer-events-none absolute left-0 right-0 top-32 rotate-[-2deg] border-y border-white/10 bg-white/5 py-2 text-xs font-black tracking-[0.45em] text-white/35 animate-[featured-ticker_22s_linear_infinite] whitespace-nowrap">
+          PRODUCT DETAIL / ZOOM THE FABRIC / SELECT YOUR FIT / SECURE THE DROP / PRODUCT DETAIL / ZOOM THE FABRIC / SELECT YOUR FIT /
+        </div>
+        <div className="pointer-events-none absolute -right-20 top-44 text-[13vw] font-black leading-none text-white/[0.035] animate-[featured-word-drift_9s_ease-in-out_infinite]">
+          DETAIL
+        </div>
+        <div className="pointer-events-none absolute left-8 bottom-[18%] text-[12vw] font-black leading-none text-white/[0.03] animate-[featured-word-drift_8s_ease-in-out_infinite_1s]">
+          DROP
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <button
             onClick={() => router.back()}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -442,11 +453,20 @@ export default function ProductPage() {
           </button>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
-            <div className="relative">
+            <div className="relative product-gallery-stage">
+              <div className="pointer-events-none absolute -inset-4 border border-white/10" />
+              <div className="pointer-events-none absolute -left-4 top-8 z-20 hidden sm:block bg-white px-4 py-3 text-black shadow-2xl">
+                <p className="text-2xl font-black">
+                  {String(discountPercent || "NEW").padStart(2, "0")}
+                </p>
+                <p className="text-[10px] tracking-[0.25em] text-black/50">
+                  DROP VIEW
+                </p>
+              </div>
               <div
-                className="aspect-square bg-neutral-900 overflow-hidden sticky top-24 group"
+                className="product-main-image aspect-square bg-neutral-900 overflow-hidden sticky top-24 group"
                 onMouseMove={handleImageZoom}
                 onMouseLeave={() => setIsImageZoomed(false)}
               >
@@ -485,7 +505,7 @@ export default function ProductPage() {
 
               {productImages.length > 1 && (
                 <div className="mt-4 grid grid-cols-4 gap-3">
-                  {productImages.map((image) => (
+                  {productImages.map((image, index) => (
                     <button
                       key={image}
                       type="button"
@@ -502,19 +522,22 @@ export default function ProductPage() {
                         fill
                         className="object-cover"
                       />
+                      <span className="absolute left-2 top-2 bg-black/70 px-2 py-1 text-[10px] font-black text-white">
+                        0{index + 1}
+                      </span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col">
+            <div className="product-info-panel flex flex-col border border-white/10 bg-white/[0.035] p-5 sm:p-7 backdrop-blur">
               <div className="mb-6">
-                <p className="text-sm text-muted-foreground mb-2">
+                <p className="inline-flex border border-white/15 bg-white/5 px-3 py-2 text-xs tracking-[0.28em] text-white/55 mb-4">
                   {product.description}
                 </p>
 
-                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+                <h1 className="text-4xl sm:text-5xl font-black tracking-normal leading-[0.95] mb-5">
                   {product.name}
                 </h1>
 
@@ -548,7 +571,7 @@ export default function ProductPage() {
                 {product.longDescription}
               </p>
 
-              <div className="border border-border bg-secondary/20 p-4 mb-6">
+              <div className="product-control-box border border-border bg-secondary/20 p-4 mb-6">
                 <p className="text-sm font-black mb-3 flex items-center gap-2">
                   <Tag className="w-4 h-4" />
                   HAVE A COUPON?
@@ -748,7 +771,7 @@ export default function ProductPage() {
                 </div>
               )}
 
-              <div className="border border-border bg-secondary/20 p-4 mb-8">
+              <div className="product-control-box border border-border bg-secondary/20 p-4 mb-8">
                 <p className="text-sm font-black mb-3 flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
                   CHECK DELIVERY
@@ -781,20 +804,20 @@ export default function ProductPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-4 py-6 border-y border-border mb-8">
-                <div className="text-center">
+              <div className="grid grid-cols-3 gap-3 py-6 border-y border-border mb-8">
+                <div className="product-promise text-center">
                   <Truck className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">Free Shipping</p>
                   <p className="text-xs text-muted-foreground">Orders ₹1500+</p>
                 </div>
 
-                <div className="text-center">
+                <div className="product-promise text-center">
                   <Shield className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">Secure</p>
                   <p className="text-xs text-muted-foreground">Payment</p>
                 </div>
 
-                <div className="text-center">
+                <div className="product-promise text-center">
                   <RotateCcw className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">3 Day</p>
                   <p className="text-xs text-muted-foreground">Returns</p>
@@ -857,7 +880,7 @@ export default function ProductPage() {
             </div>
           </div>
 
-          <section className="mt-20 pt-12 border-t border-border">
+          <section className="relative mt-20 pt-12 border-t border-border">
             <h2 className="text-xl font-bold tracking-tight mb-8">
               YOU MAY ALSO LIKE
             </h2>
@@ -868,7 +891,7 @@ export default function ProductPage() {
                 const relatedMrp = getDisplayMrp(relatedProduct)
 
                 return (
-                  <div key={relatedProduct.id} className="relative group">
+                  <div key={relatedProduct.id} className="product-card-pop relative group">
                     <button
                       onClick={() => {
                         if (relatedSaved) {

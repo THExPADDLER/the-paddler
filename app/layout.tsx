@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "./providers/AuthProvider"
 import { MaintenanceGate } from "@/components/maintenance-gate"
+import { ScrollAtmosphere } from "@/components/scroll-atmosphere"
 import { WhatsAppButton } from "@/components/whatsapp-button"
 
 
@@ -53,6 +54,7 @@ export default function RootLayout({
           <CartProvider>
             <AuthProvider>
               <MaintenanceGate />
+              <ScrollAtmosphere />
               {children}
             </AuthProvider>
           </CartProvider>
