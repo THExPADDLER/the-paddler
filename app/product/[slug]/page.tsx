@@ -312,18 +312,11 @@ export default function ProductPage() {
       if (response.ok && data?.serviceable) {
         const deliveryCity = data.city || city
         const courierText = data.courierName ? ` via ${data.courierName}` : ""
-        const etaText =
-          data.etd || data.estimatedDeliveryDays
-            ? ` Estimated delivery: ${
-                data.etd ||
-                `${data.estimatedDeliveryDays} business days`
-              }.`
-            : ` Approx delivery by ${deliveryDate}.`
 
         setDeliveryMessage(
           `Delivery available${
             deliveryCity ? ` in ${deliveryCity}` : ""
-          }${courierText}.${etaText}`
+          }${courierText}. Approx delivery by ${deliveryDate}.`
         )
         return
       }

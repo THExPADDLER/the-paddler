@@ -6,6 +6,7 @@ import { MapPin, Trash2, Plus, Save } from "lucide-react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "@/app/providers/AuthProvider"
+import { indiaStates } from "@/lib/india-states"
 
 type Address = {
   id: number
@@ -28,6 +29,17 @@ const pincodeData: Record<string, { city: string; state: string }> = {
   "400001": { city: "Mumbai", state: "Maharashtra" },
   "110001": { city: "New Delhi", state: "Delhi" },
   "560001": { city: "Bengaluru", state: "Karnataka" },
+}
+
+const getApproxDeliveryDate = () => {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date)
 }
 
 export default function AddressesPage() {
@@ -85,8 +97,6 @@ export default function AddressesPage() {
     setPincodeServiceable(null)
 
     if (cleanValue.length < 6) {
-      setCity("")
-      setState("")
       setPincodeMessage("")
       return
     }
@@ -96,9 +106,6 @@ export default function AddressesPage() {
     if (matched) {
       setCity(matched.city)
       setState(matched.state)
-    } else {
-      setCity("")
-      setState("")
     }
 
     setCheckingPincode(true)
@@ -122,7 +129,7 @@ export default function AddressesPage() {
             data.city ? ` in ${data.city}` : ""
           }${
             data.courierName ? ` via ${data.courierName}` : ""
-          }${data.etd ? `. ETA: ${data.etd}` : "."}`
+          }. Approx delivery by ${getApproxDeliveryDate()}.`
         )
         return
       }
@@ -134,12 +141,12 @@ export default function AddressesPage() {
       }
 
       setPincodeMessage(
-        "Enter city/state manually. Courier availability will be confirmed before dispatch."
+        `Enter city/state manually. Approx delivery by ${getApproxDeliveryDate()}.`
       )
     } catch (error) {
       console.error("ADDRESS PINCODE SERVICEABILITY ERROR:", error)
       setPincodeMessage(
-        "Enter city/state manually. Courier availability will be confirmed before dispatch."
+        `Enter city/state manually. Approx delivery by ${getApproxDeliveryDate()}.`
       )
     } finally {
       setCheckingPincode(false)
@@ -286,14 +293,19 @@ export default function AddressesPage() {
                   required
                 />
 
-                <input
-                  type="text"
-                  placeholder="State"
+                <select
                   className="w-full bg-background border border-border px-4 py-4 outline-none focus:border-foreground text-white mt-4"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   required
-                />
+                >
+                  <option value="">Select State</option>
+                  {indiaStates.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
 
               </div>
 

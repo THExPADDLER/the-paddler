@@ -35,6 +35,17 @@ type DeliveryCheck = {
   estimatedDeliveryDays?: string | number | null
 }
 
+const getApproxDeliveryDate = () => {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date)
+}
+
 type RazorpayCheckoutResponse = {
   razorpay_order_id: string
   razorpay_payment_id: string
@@ -236,12 +247,7 @@ export default function CheckoutPage() {
         }
       )
       const data = await response.json()
-      const etaText =
-        data?.etd || data?.estimatedDeliveryDays
-          ? ` Estimated delivery: ${
-              data.etd || `${data.estimatedDeliveryDays} business days`
-            }.`
-          : ""
+      const etaText = ` Approx delivery by ${getApproxDeliveryDate()}.`
       const isShiprocketUnavailable = !response.ok
       const serviceable =
         response.ok && data?.serviceable === true
