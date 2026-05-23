@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { CheckCircle2, Clock3, Package, RefreshCcw, Truck } from "lucide-react"
+import { CheckCircle2, ChevronDown, Clock3, Package, RefreshCcw, Truck } from "lucide-react"
 import {
   collection,
   doc,
@@ -91,6 +91,17 @@ const canMoveToStatus = (order: AdminOrder, nextStatus: string, isPaid: boolean)
 const canCancelOrder = (order: AdminOrder) =>
   !["cancelled", "shipped", "in_transit", "delivered"].includes(order.status || "")
 
+const orderStatusFilters = [
+  { label: "All orders", value: "all" },
+  { label: "Paid", value: "paid" },
+  { label: "Processing", value: "processing" },
+  { label: "Shipped", value: "shipped" },
+  { label: "In Transit", value: "in_transit" },
+  { label: "Delivered", value: "delivered" },
+  { label: "Pending Payment", value: "pending_payment" },
+  { label: "Cancelled", value: "cancelled" },
+]
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -101,6 +112,11 @@ export default function AdminOrdersPage() {
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [syncingShipmentId, setSyncingShipmentId] = useState<string | null>(null)
   const [creatingShipmentId, setCreatingShipmentId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState("all")
+  const filteredOrders =
+    statusFilter === "all"
+      ? orders
+      : orders.filter((order) => order.status === statusFilter)
 
   const fetchOrders = async () => {
     try {
@@ -472,19 +488,41 @@ export default function AdminOrdersPage() {
               ORDER CONTROL
             </p>
 
-            <h1 className="text-4xl font-black mb-10">ORDERS</h1>
+            <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <h1 className="text-4xl font-black">ORDERS</h1>
+
+              <label className="block w-full md:w-72">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[0.28em] text-muted-foreground">
+                  Filter orders
+                </span>
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="h-12 w-full appearance-none border border-border bg-background px-4 pr-11 text-sm font-black outline-none transition-colors hover:bg-secondary focus:border-foreground"
+                  >
+                    {orderStatusFilters.map((filter) => (
+                      <option key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+              </label>
+            </div>
 
             <div className="space-y-6">
               {loading ? (
                 <div className="border border-border bg-secondary/20 p-6 text-muted-foreground">
                   Loading orders...
                 </div>
-              ) : orders.length === 0 ? (
+              ) : filteredOrders.length === 0 ? (
                 <div className="border border-border bg-secondary/20 p-6 text-muted-foreground">
-                  No orders found.
+                  No {statusFilter === "all" ? "" : formatStatus(statusFilter).toLowerCase()} orders found.
                 </div>
               ) : (
-                orders.map((order) => {
+                filteredOrders.map((order) => {
                   const firstItem = order.items?.[0]
                   const paymentStatus = order.payment?.status || "pending"
                   const isPaid = paymentStatus === "success"

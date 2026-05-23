@@ -173,7 +173,7 @@ const shiprocketFetch = async <T>(
       status: response.status,
       data,
     })
-    throw new Error(data?.message || "Shiprocket API request failed.")
+    throw new Error(getShiprocketErrorMessage(data))
   }
 
   return data as T
@@ -192,9 +192,39 @@ const formatShiprocketDate = (value?: string) => {
 const splitName = (name?: string) => {
   const parts = (name || "Customer").trim().split(/\s+/)
   const firstName = parts.shift() || "Customer"
-  const lastName = parts.join(" ") || "."
+  const lastName = parts.join(" ") || firstName
 
   return { firstName, lastName }
+}
+
+const normalizeIndianPhone = (value?: string) => {
+  const digits = String(value || "").replace(/\D/g, "")
+
+  if (digits.length >= 10) {
+    return digits.slice(-10)
+  }
+
+  return "9999999999"
+}
+
+const normalizePincode = (value?: string) => {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 6)
+
+  return digits.length === 6 ? digits : "000000"
+}
+
+const getShiprocketErrorMessage = (data: any) => {
+  const errors = data?.errors || data?.error
+
+  if (typeof data?.message === "string" && errors) {
+    return `${data.message}: ${JSON.stringify(errors)}`
+  }
+
+  if (typeof data?.message === "string") return data.message
+  if (typeof errors === "string") return errors
+  if (errors) return JSON.stringify(errors)
+
+  return "Shiprocket API request failed."
 }
 
 const buildShiprocketOrderPayload = (order: PaddlerOrder) => {
@@ -216,11 +246,11 @@ const buildShiprocketOrderPayload = (order: PaddlerOrder) => {
     billing_address: address.address || "Address not provided",
     billing_address_2: address.landmark || "",
     billing_city: address.city || "City not provided",
-    billing_pincode: address.pincode || "000000",
+    billing_pincode: normalizePincode(address.pincode),
     billing_state: address.state || "State not provided",
     billing_country: "India",
     billing_email: order.customer?.email || "support@thepaddler.in",
-    billing_phone: order.customer?.phone || address.phone || "9999999999",
+    billing_phone: normalizeIndianPhone(order.customer?.phone || address.phone),
     shipping_is_billing: true,
     order_items: items.map((item) => ({
       name: `${item.name} - ${item.size}`,
@@ -264,9 +294,9 @@ const buildShiprocketReturnPayload = (order: PaddlerOrder) => {
     pickup_city: address.city || "City not provided",
     pickup_state: address.state || "State not provided",
     pickup_country: "India",
-    pickup_pincode: Number(address.pincode || 0),
+    pickup_pincode: Number(normalizePincode(address.pincode)),
     pickup_email: order.customer?.email || "support@thepaddler.in",
-    pickup_phone: order.customer?.phone || address.phone || "9999999999",
+    pickup_phone: normalizeIndianPhone(order.customer?.phone || address.phone),
     pickup_isd_code: "91",
     shipping_customer_name: process.env.SHIPROCKET_RETURN_NAME || "THE PADDLER",
     shipping_last_name: "",
@@ -279,7 +309,9 @@ const buildShiprocketReturnPayload = (order: PaddlerOrder) => {
     shipping_state: process.env.SHIPROCKET_RETURN_STATE || "Madhya Pradesh",
     shipping_email: process.env.SHIPROCKET_RETURN_EMAIL || "support@thepaddler.in",
     shipping_isd_code: "91",
-    shipping_phone: process.env.SHIPROCKET_RETURN_PHONE || "9399255433",
+    shipping_phone: normalizeIndianPhone(
+      process.env.SHIPROCKET_RETURN_PHONE || "9399255433"
+    ),
     order_items: items.map((item) => ({
       name: item.name,
       sku: `${item.id}-${item.size}`,
@@ -358,7 +390,7 @@ export const createShiprocketShipmentForOrder = async (orderId: string) => {
 
   await updateDoc(orderRef, {
     shipment,
-    trackingId: shipment.awb || shipment.shipmentId,
+    trackingId: shipment.awb || "",
     trackingUrl: shipment.trackingUrl,
     status: "processing",
     updatedAt: new Date().toISOString(),
@@ -404,40 +436,59 @@ export const createShiprocketShipment = async (order: PaddlerOrder) => {
   }
 
   if (config.defaultCourierId) {
+    console.info("SHIPROCKET ASSIGN AWB START:", { orderId, shipmentId })
     awbPayload.courier_id = config.defaultCourierId
-  }
 
-  console.info("SHIPROCKET ASSIGN AWB START:", { orderId, shipmentId })
+    const awbData = await shiprocketFetch<Record<string, unknown>>(
+      "/courier/assign/awb",
+      {
+        method: "POST",
+        body: JSON.stringify(awbPayload),
+      }
+    )
 
-  const awbData = await shiprocketFetch<Record<string, unknown>>(
-    "/courier/assign/awb",
-    {
-      method: "POST",
-      body: JSON.stringify(awbPayload),
+    const awb = String(extractAwb(awbData) || "")
+    const courierName = String(extractCourierName(awbData) || "")
+    const trackingUrl = awb ? `/tracking/${orderId}` : ""
+
+    const shipment = {
+      provider: "shiprocket",
+      status: awb ? "awb_assigned" : "awb_processing",
+      shiprocketOrderId: shiprocketOrderId || null,
+      shipmentId,
+      awb,
+      courierName,
+      trackingUrl,
+      createdOrder,
+      awbResponse: awbData,
+      updatedAt: new Date().toISOString(),
     }
-  )
 
-  const awb = String(extractAwb(awbData) || "")
-  const courierName = String(extractCourierName(awbData) || "")
-  const trackingUrl = awb ? `/tracking/${orderId}` : ""
+    console.info("SHIPROCKET SHIPMENT CREATED:", {
+      orderId,
+      shipmentId,
+      awb,
+    })
+
+    return shipment
+  }
 
   const shipment = {
     provider: "shiprocket",
-    status: awb ? "awb_assigned" : "awb_processing",
+    status: "shiprocket_order_created",
     shiprocketOrderId: shiprocketOrderId || null,
     shipmentId,
-    awb,
-    courierName,
-    trackingUrl,
+    awb: "",
+    courierName: "",
+    trackingUrl: "",
     createdOrder,
-    awbResponse: awbData,
+    awbResponse: null,
     updatedAt: new Date().toISOString(),
   }
 
-  console.info("SHIPROCKET SHIPMENT CREATED:", {
+  console.info("SHIPROCKET ORDER CREATED WITHOUT AWB:", {
     orderId,
     shipmentId,
-    awb,
   })
 
   return shipment

@@ -141,7 +141,6 @@ const getStatusColor = (status: string) => {
 const isOrderShipped = (order: CustomerOrder) => {
   return Boolean(
     order.shipment?.awb ||
-      order.shipment?.shipmentId ||
       ["shipped", "in_transit", "delivered"].includes(order.status)
   )
 }

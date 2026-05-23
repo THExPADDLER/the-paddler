@@ -1,35 +1,144 @@
-# the-paddler
+# THE PADDLER
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+THE PADDLER is a custom streetwear ecommerce platform built with Next.js, TypeScript, Firebase, Razorpay, and Shiprocket. The app covers the full customer journey from browsing products to checkout, payment confirmation, order tracking, invoices, returns, and admin operations.
 
-## Built with v0
+## Current Status
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+The main website work is functional. The remaining production steps are primarily domain, live payment keys, final environment setup, and real-world courier/payment testing.
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_jAydeKICzM6kQoxHlTaXRBQpQjSw)
+## Tech Stack
 
-## Getting Started
+- Next.js 16 with the App Router
+- React 19 and TypeScript
+- Firebase Authentication and Cloud Firestore
+- Razorpay payment gateway
+- Shiprocket order creation and logistics sync
+- Nodemailer SMTP email notifications
+- Tailwind CSS and custom UI styling
 
-First, run the development server:
+## Core Customer Features
+
+- Responsive landing page with animated hero, featured products, brand sections, and WhatsApp chat access
+- Product listing, product detail page, multiple product images, image zoom, size selection, and delivery estimate
+- Cart, wishlist, coupon application, and checkout flow
+- Google login, email/password signup, password visibility toggle, re-enter password validation, and mobile OTP verification
+- Saved addresses with landmark, city, state dropdown, pincode, and formatted `+91 XXXXX XXXXX` phone numbers
+- Razorpay prepaid checkout with retry payment support
+- Thank-you page after successful payment
+- Customer order dashboard with invoice download, animated order timeline, cancellation rules, and return request flow
+- Return request form with reason dropdown, description, and image upload
+
+## Admin Features
+
+- Admin dashboard with role-based access for admin, staff, and customer
+- Product creation and editing with image upload support
+- Product tags such as new arrival, bestseller, limited, and featured products
+- Shared color-size inventory model so stock deducts across designs using the same color and size base
+- Inventory page for stock visibility and updates
+- Orders page with payment status, shipment status, invoice, cancellation, and order-status controls
+- Forward-only order status flow: paid, processing, shipped, transit, delivered
+- Order filtering by payment and shipment stage
+- Returns management with unread request badge
+- Coupon management with once-per-user coupon usage enforcement
+- User management with registered users and ordered users separated
+- Banner and homepage content management, including hero image slots and countdown controls
+- Maintenance mode controls
+- Download report flow with date range selection and PDF export
+
+## Payment Flow
+
+Razorpay is the active payment gateway.
+
+1. Customer creates an order from checkout.
+2. Razorpay payment is started from the client.
+3. Payment success is verified through backend API routes.
+4. Firestore order payment status is updated to success.
+5. Inventory is deducted only after successful payment.
+6. The customer is redirected to the thank-you page.
+7. The order appears in the customer and admin order dashboards.
+
+PhonePe is no longer part of the active checkout flow.
+
+## Shiprocket Flow
+
+Shiprocket is used for logistics order creation after successful payment.
+
+1. The site creates a Shiprocket order after Razorpay success.
+2. The Shiprocket order/shipment ID is saved in Firestore.
+3. Courier partner selection and shipping action are handled manually inside the Shiprocket panel.
+4. The website does not automatically mark an order as shipped when the Shiprocket order is created.
+5. The admin order status chain controls what the customer sees.
+
+Required environment variables are stored in `.env.local` locally and in Vercel Environment Variables for production.
+
+## Environment Variables
+
+Create `.env.local` for local development. Do not commit secrets.
+
+```bash
+NEXT_PUBLIC_RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+
+SHIPROCKET_EMAIL=
+SHIPROCKET_PASSWORD=
+SHIPROCKET_API_BASE_URL=
+SHIPROCKET_PICKUP_LOCATION=
+SHIPROCKET_PICKUP_POSTCODE=
+
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+```
+
+Firebase public config is kept in the client Firebase setup. Secret credentials must stay server-side only.
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the local development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-## Learn More
+Type-check before release:
 
-To learn more, take a look at the following resources:
+```bash
+npx tsc --noEmit --pretty false
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+Build for production:
 
-<a href="https://v0.app/chat/projects/prj_jAydeKICzM6kQoxHlTaXRBQpQjSw" alt="Open in v0"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+```bash
+npm run build
+```
+
+## Production Checklist
+
+- Add the final domain `thepaddler.in` and `www.thepaddler.in`
+- Add the production domain to Firebase authorized domains
+- Replace Razorpay test keys with live keys after Razorpay live approval
+- Verify Razorpay webhook/signature flow in production
+- Confirm Shiprocket credentials and pickup location in Vercel
+- Redeploy after every environment variable change
+- Place one real low-value test order
+- Confirm Firestore order, invoice, inventory deduction, Shiprocket order creation, email notification, and customer order timeline
+
+## Notes
+
+- `.env.local` and runtime logs must not be committed.
+- Admin-only actions must stay protected through role checks.
+- Shiprocket AWB/courier selection is intentionally manual unless a default courier ID is configured later.
