@@ -12,12 +12,16 @@ import { ProtectedRoute } from "@/components/protected-route"
 import { db, storage } from "@/lib/firebase"
 import { getProductBySlug, type Product } from "@/lib/products"
 
-type BadgeOption = "new-arrival" | "bestseller" | "none"
+type BadgeOption = "new-arrival" | "most-selling" | "bestseller" | "none"
 
 const badgeOptions: Record<BadgeOption, { label: string | null; color: string | null }> = {
   "new-arrival": {
     label: "NEW ARRIVAL",
     color: "bg-foreground text-background",
+  },
+  "most-selling": {
+    label: "MOST SELLING",
+    color: "bg-accent text-background",
   },
   bestseller: {
     label: "BESTSELLER",
@@ -31,6 +35,7 @@ const badgeOptions: Record<BadgeOption, { label: string | null; color: string | 
 
 const getBadgeOption = (badge: string | null | undefined): BadgeOption => {
   if (badge === "BESTSELLER") return "bestseller"
+  if (badge === "MOST SELLING") return "most-selling"
   if (badge === "NEW ARRIVAL") return "new-arrival"
   return "none"
 }
@@ -441,6 +446,7 @@ export default function EditProductPage() {
                   className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
                 >
                   <option value="new-arrival">Badge: New Arrival</option>
+                  <option value="most-selling">Badge: Most Selling</option>
                   <option value="bestseller">Badge: Best Seller</option>
                   <option value="none">Badge: No Badge</option>
                 </select>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Clock3, Package, RotateCcw, Truck } from "lucide-react"
+import { CheckCircle2, Clock3, Package, RotateCcw, Truck, XCircle } from "lucide-react"
 import {
   addDoc,
   collection,
@@ -134,7 +134,7 @@ const formatStatus = (status: string) => {
 
 const getStatusColor = (status: string) => {
   if (status === "paid" || status === "success" || status === "completed") return "text-green-400"
-  if (status.includes("failed")) return "text-red-400"
+  if (status.includes("failed") || status === "cancelled") return "text-red-400"
   return "text-yellow-400"
 }
 
@@ -670,48 +670,66 @@ export default function OrdersPage() {
                   ].includes(order.status)
                 const showReturn = delivered || returnRequested
                 const returnWindowOpen = isReturnWindowOpen(order)
-                const timelineSteps = [
-                  {
-                    title: "Order Placed",
-                    message: "Your order has been placed.",
-                    complete: true,
-                    failed: false,
-                    icon: CheckCircle2,
-                  },
-                  {
-                    title: paymentComplete
-                      ? "Payment Successful"
-                      : paymentFailed
-                      ? "Payment Failed"
-                      : "Payment Pending",
-                    message: paymentComplete
-                      ? "Payment has been confirmed."
-                      : paymentFailed
-                      ? "Payment failed. Please contact support or try again."
-                      : "Waiting for payment confirmation.",
-                    complete: paymentComplete,
-                    failed: paymentFailed,
-                    icon: paymentComplete ? CheckCircle2 : Clock3,
-                  },
-                  {
-                    title: shipped ? "Shipped" : "Shipment Pending",
-                    message: order.shipment?.awb
-                      ? `AWB: ${order.shipment.awb}`
-                      : "Awaiting shipment creation.",
-                    complete: shipped,
-                    failed: false,
-                    icon: Truck,
-                  },
-                  {
-                    title: delivered ? "Delivered" : "Delivery Pending",
-                    message: delivered
-                      ? "Your order has been delivered."
-                      : "Awaiting dispatch.",
-                    complete: delivered,
-                    failed: false,
-                    icon: Package,
-                  },
-                ]
+                const timelineSteps =
+                  order.status === "cancelled"
+                    ? [
+                        {
+                          title: "Order Placed",
+                          message: "Your order was placed.",
+                          complete: true,
+                          failed: false,
+                          icon: CheckCircle2,
+                        },
+                        {
+                          title: "Order Cancelled",
+                          message: "This order has been cancelled.",
+                          complete: true,
+                          failed: true,
+                          icon: XCircle,
+                        },
+                      ]
+                    : [
+                        {
+                          title: "Order Placed",
+                          message: "Your order has been placed.",
+                          complete: true,
+                          failed: false,
+                          icon: CheckCircle2,
+                        },
+                        {
+                          title: paymentComplete
+                            ? "Payment Successful"
+                            : paymentFailed
+                            ? "Payment Failed"
+                            : "Payment Pending",
+                          message: paymentComplete
+                            ? "Payment has been confirmed."
+                            : paymentFailed
+                            ? "Payment failed. Please contact support or try again."
+                            : "Waiting for payment confirmation.",
+                          complete: paymentComplete,
+                          failed: paymentFailed,
+                          icon: paymentComplete ? CheckCircle2 : Clock3,
+                        },
+                        {
+                          title: shipped ? "Shipped" : "Shipment Pending",
+                          message: order.shipment?.awb
+                            ? `AWB: ${order.shipment.awb}`
+                            : "Awaiting shipment creation.",
+                          complete: shipped,
+                          failed: false,
+                          icon: Truck,
+                        },
+                        {
+                          title: delivered ? "Delivered" : "Delivery Pending",
+                          message: delivered
+                            ? "Your order has been delivered."
+                            : "Awaiting dispatch.",
+                          complete: delivered,
+                          failed: false,
+                          icon: Package,
+                        },
+                      ]
 
                 return (
                   <div
@@ -825,7 +843,11 @@ export default function OrdersPage() {
                                     {!isLast && (
                                       <div className="relative my-2 h-14 w-px overflow-hidden bg-border">
                                         <div
-                                          className={`absolute left-0 top-0 w-px bg-green-400 shadow-[0_0_12px_rgba(34,197,94,0.7)] transition-all duration-1000 ease-out ${getConnectorFill(
+                                          className={`absolute left-0 top-0 w-px transition-all duration-1000 ease-out ${
+                                            nextStep?.failed
+                                              ? "bg-red-400 shadow-[0_0_12px_rgba(248,113,113,0.7)]"
+                                              : "bg-green-400 shadow-[0_0_12px_rgba(34,197,94,0.7)]"
+                                          } ${getConnectorFill(
                                             step.complete,
                                             Boolean(nextStep?.complete)
                                           )}`}

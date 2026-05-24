@@ -217,6 +217,22 @@ const normalizeIndianPhone = (...values: Array<string | undefined>) => {
   return cleanEnvValue(process.env.SHIPROCKET_RETURN_PHONE).replace(/\D/g, "").slice(-10) || "9399255433"
 }
 
+const getShiprocketContactPhone = (...values: Array<string | undefined>) => {
+  const normalized = normalizeIndianPhone(...values)
+
+  if (/^[6-9]\d{9}$/.test(normalized)) {
+    return normalized
+  }
+
+  return "9399255433"
+}
+
+const getStorePhone = () =>
+  getShiprocketContactPhone(
+    cleanEnvValue(process.env.SHIPROCKET_RETURN_PHONE),
+    "9399255433"
+  )
+
 const normalizePincode = (value?: string) => {
   const digits = String(value || "").replace(/\D/g, "").slice(0, 6)
 
@@ -260,7 +276,7 @@ const buildShiprocketOrderPayload = (order: PaddlerOrder) => {
     billing_state: address.state || "State not provided",
     billing_country: "India",
     billing_email: order.customer?.email || "support@thepaddler.in",
-    billing_phone: normalizeIndianPhone(address.phone, order.customer?.phone),
+    billing_phone: getShiprocketContactPhone(address.phone, order.customer?.phone),
     shipping_is_billing: true,
     order_items: items.map((item) => ({
       name: `${item.name} - ${item.size}`,
@@ -306,7 +322,7 @@ const buildShiprocketReturnPayload = (order: PaddlerOrder) => {
     pickup_country: "India",
     pickup_pincode: Number(normalizePincode(address.pincode)),
     pickup_email: order.customer?.email || "support@thepaddler.in",
-    pickup_phone: normalizeIndianPhone(address.phone, order.customer?.phone),
+    pickup_phone: getShiprocketContactPhone(address.phone, order.customer?.phone),
     pickup_isd_code: "91",
     shipping_customer_name: cleanEnvValue(process.env.SHIPROCKET_RETURN_NAME) || "THE PADDLER",
     shipping_last_name: "",
@@ -319,7 +335,7 @@ const buildShiprocketReturnPayload = (order: PaddlerOrder) => {
     shipping_state: cleanEnvValue(process.env.SHIPROCKET_RETURN_STATE) || "Madhya Pradesh",
     shipping_email: cleanEnvValue(process.env.SHIPROCKET_RETURN_EMAIL) || "support@thepaddler.in",
     shipping_isd_code: "91",
-    shipping_phone: normalizeIndianPhone(
+    shipping_phone: getShiprocketContactPhone(
       cleanEnvValue(process.env.SHIPROCKET_RETURN_PHONE) || "9399255433"
     ),
     order_items: items.map((item) => ({
@@ -420,13 +436,40 @@ export const createShiprocketShipment = async (order: PaddlerOrder) => {
   const orderPayload = buildShiprocketOrderPayload(order)
   console.info("SHIPROCKET CREATE ORDER START:", { orderId })
 
-  const createdOrder = await shiprocketFetch<Record<string, unknown>>(
-    "/orders/create/adhoc",
-    {
-      method: "POST",
-      body: JSON.stringify(orderPayload),
+  let createdOrder: Record<string, unknown>
+
+  try {
+    createdOrder = await shiprocketFetch<Record<string, unknown>>(
+      "/orders/create/adhoc",
+      {
+        method: "POST",
+        body: JSON.stringify(orderPayload),
+      }
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ""
+
+    if (!message.toLowerCase().includes("phone")) {
+      throw error
     }
-  )
+
+    const fallbackPhone = getStorePhone()
+    console.warn("SHIPROCKET PHONE RETRY WITH STORE CONTACT:", {
+      orderId,
+      fallbackPhone,
+    })
+
+    createdOrder = await shiprocketFetch<Record<string, unknown>>(
+      "/orders/create/adhoc",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          ...orderPayload,
+          billing_phone: fallbackPhone,
+        }),
+      }
+    )
+  }
 
   const shiprocketOrderId =
     createdOrder.order_id ||

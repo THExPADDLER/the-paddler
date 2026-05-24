@@ -10,12 +10,16 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
 
-type BadgeOption = "new-arrival" | "bestseller" | "none"
+type BadgeOption = "new-arrival" | "most-selling" | "bestseller" | "none"
 
 const badgeOptions: Record<BadgeOption, { label: string | null; color: string | null }> = {
   "new-arrival": {
     label: "NEW ARRIVAL",
     color: "bg-foreground text-background",
+  },
+  "most-selling": {
+    label: "MOST SELLING",
+    color: "bg-accent text-background",
   },
   bestseller: {
     label: "BESTSELLER",
@@ -381,6 +385,7 @@ export default function AddProductPage() {
                 className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
               >
                 <option value="new-arrival">Badge: New Arrival</option>
+                <option value="most-selling">Badge: Most Selling</option>
                 <option value="bestseller">Badge: Best Seller</option>
                 <option value="none">Badge: No Badge</option>
               </select>
