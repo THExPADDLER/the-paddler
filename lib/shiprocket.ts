@@ -64,6 +64,12 @@ type ShiprocketTokenCache = {
 
 let tokenCache: ShiprocketTokenCache | null = null
 
+const cleanEnvValue = (value?: string) =>
+  (value || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .trim()
+
 const fetchWithTimeout = async (
   input: string,
   init: RequestInit = {},
@@ -83,27 +89,28 @@ const fetchWithTimeout = async (
 }
 
 const getShiprocketConfig = (): ShiprocketConfig => {
-  const email = process.env.SHIPROCKET_EMAIL
-  const password = process.env.SHIPROCKET_PASSWORD
+  const email = cleanEnvValue(process.env.SHIPROCKET_EMAIL)
+  const password = cleanEnvValue(process.env.SHIPROCKET_PASSWORD)
 
   if (!email || !password) {
     throw new Error("Shiprocket email/password is missing in .env.local.")
   }
 
   return {
-    apiBaseUrl:
-      process.env.SHIPROCKET_API_BASE_URL || "https://apiv2.shiprocket.in/v1/external",
+    apiBaseUrl: cleanEnvValue(
+      process.env.SHIPROCKET_API_BASE_URL || "https://apiv2.shiprocket.in/v1/external"
+    ).replace(/\/+$/, ""),
     email,
     password,
-    pickupLocation: process.env.SHIPROCKET_PICKUP_LOCATION || "Primary",
-    defaultWeightKg: Number(process.env.SHIPROCKET_DEFAULT_WEIGHT_KG || 0.5),
-    defaultLengthCm: Number(process.env.SHIPROCKET_DEFAULT_LENGTH_CM || 28),
-    defaultBreadthCm: Number(process.env.SHIPROCKET_DEFAULT_BREADTH_CM || 22),
-    defaultHeightCm: Number(process.env.SHIPROCKET_DEFAULT_HEIGHT_CM || 4),
-    defaultCourierId: process.env.SHIPROCKET_DEFAULT_COURIER_ID
-      ? Number(process.env.SHIPROCKET_DEFAULT_COURIER_ID)
+    pickupLocation: cleanEnvValue(process.env.SHIPROCKET_PICKUP_LOCATION) || "Primary",
+    defaultWeightKg: Number(cleanEnvValue(process.env.SHIPROCKET_DEFAULT_WEIGHT_KG) || 0.5),
+    defaultLengthCm: Number(cleanEnvValue(process.env.SHIPROCKET_DEFAULT_LENGTH_CM) || 28),
+    defaultBreadthCm: Number(cleanEnvValue(process.env.SHIPROCKET_DEFAULT_BREADTH_CM) || 22),
+    defaultHeightCm: Number(cleanEnvValue(process.env.SHIPROCKET_DEFAULT_HEIGHT_CM) || 4),
+    defaultCourierId: cleanEnvValue(process.env.SHIPROCKET_DEFAULT_COURIER_ID)
+      ? Number(cleanEnvValue(process.env.SHIPROCKET_DEFAULT_COURIER_ID))
       : undefined,
-    pickupPostcode: process.env.SHIPROCKET_PICKUP_POSTCODE || "462038",
+    pickupPostcode: cleanEnvValue(process.env.SHIPROCKET_PICKUP_POSTCODE) || "462038",
   }
 }
 
@@ -197,14 +204,17 @@ const splitName = (name?: string) => {
   return { firstName, lastName }
 }
 
-const normalizeIndianPhone = (value?: string) => {
-  const digits = String(value || "").replace(/\D/g, "")
+const normalizeIndianPhone = (...values: Array<string | undefined>) => {
+  for (const value of values) {
+    const digits = String(value || "").replace(/\D/g, "")
+    const phone = digits.length >= 10 ? digits.slice(-10) : ""
 
-  if (digits.length >= 10) {
-    return digits.slice(-10)
+    if (/^[6-9]\d{9}$/.test(phone)) {
+      return phone
+    }
   }
 
-  return "9999999999"
+  return cleanEnvValue(process.env.SHIPROCKET_RETURN_PHONE).replace(/\D/g, "").slice(-10) || "9399255433"
 }
 
 const normalizePincode = (value?: string) => {
@@ -250,7 +260,7 @@ const buildShiprocketOrderPayload = (order: PaddlerOrder) => {
     billing_state: address.state || "State not provided",
     billing_country: "India",
     billing_email: order.customer?.email || "support@thepaddler.in",
-    billing_phone: normalizeIndianPhone(order.customer?.phone || address.phone),
+    billing_phone: normalizeIndianPhone(address.phone, order.customer?.phone),
     shipping_is_billing: true,
     order_items: items.map((item) => ({
       name: `${item.name} - ${item.size}`,
@@ -296,21 +306,21 @@ const buildShiprocketReturnPayload = (order: PaddlerOrder) => {
     pickup_country: "India",
     pickup_pincode: Number(normalizePincode(address.pincode)),
     pickup_email: order.customer?.email || "support@thepaddler.in",
-    pickup_phone: normalizeIndianPhone(order.customer?.phone || address.phone),
+    pickup_phone: normalizeIndianPhone(address.phone, order.customer?.phone),
     pickup_isd_code: "91",
-    shipping_customer_name: process.env.SHIPROCKET_RETURN_NAME || "THE PADDLER",
+    shipping_customer_name: cleanEnvValue(process.env.SHIPROCKET_RETURN_NAME) || "THE PADDLER",
     shipping_last_name: "",
     shipping_address:
-      process.env.SHIPROCKET_RETURN_ADDRESS || config.pickupLocation,
-    shipping_address_2: process.env.SHIPROCKET_RETURN_ADDRESS_2 || "",
-    shipping_city: process.env.SHIPROCKET_RETURN_CITY || "Bhopal",
+      cleanEnvValue(process.env.SHIPROCKET_RETURN_ADDRESS) || config.pickupLocation,
+    shipping_address_2: cleanEnvValue(process.env.SHIPROCKET_RETURN_ADDRESS_2) || "",
+    shipping_city: cleanEnvValue(process.env.SHIPROCKET_RETURN_CITY) || "Bhopal",
     shipping_country: "India",
-    shipping_pincode: Number(process.env.SHIPROCKET_RETURN_PINCODE || 462038),
-    shipping_state: process.env.SHIPROCKET_RETURN_STATE || "Madhya Pradesh",
-    shipping_email: process.env.SHIPROCKET_RETURN_EMAIL || "support@thepaddler.in",
+    shipping_pincode: Number(cleanEnvValue(process.env.SHIPROCKET_RETURN_PINCODE) || 462038),
+    shipping_state: cleanEnvValue(process.env.SHIPROCKET_RETURN_STATE) || "Madhya Pradesh",
+    shipping_email: cleanEnvValue(process.env.SHIPROCKET_RETURN_EMAIL) || "support@thepaddler.in",
     shipping_isd_code: "91",
     shipping_phone: normalizeIndianPhone(
-      process.env.SHIPROCKET_RETURN_PHONE || "9399255433"
+      cleanEnvValue(process.env.SHIPROCKET_RETURN_PHONE) || "9399255433"
     ),
     order_items: items.map((item) => ({
       name: item.name,
