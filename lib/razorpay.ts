@@ -1,6 +1,12 @@
+const cleanEnvValue = (value?: string) =>
+  (value || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .trim()
+
 const getRazorpayConfig = () => {
-  const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
-  const keySecret = process.env.RAZORPAY_KEY_SECRET
+  const keyId = cleanEnvValue(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID)
+  const keySecret = cleanEnvValue(process.env.RAZORPAY_KEY_SECRET)
 
   if (!keyId || !keySecret) {
     throw new Error("Razorpay key id/secret is missing.")
@@ -40,10 +46,13 @@ export const razorpayFetch = async <T>(
       status: response.status,
       data,
     })
+    const razorpayMessage =
+      data?.error?.description || data?.error?.reason || "Razorpay request failed."
+
     throw new Error(
-      data?.error?.description ||
-        data?.error?.reason ||
-        "Razorpay request failed."
+      response.status === 401
+        ? "Razorpay authentication failed. Please verify the live/test key id and secret saved in Vercel."
+        : razorpayMessage
     )
   }
 
