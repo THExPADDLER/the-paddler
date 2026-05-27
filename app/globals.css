@@ -357,6 +357,11 @@ footer {
   z-index: 1;
 }
 
+.site-header {
+  pointer-events: auto;
+  isolation: isolate;
+}
+
 @keyframes paddler-fade-up {
   from {
     opacity: 0;
@@ -728,7 +733,7 @@ footer {
   main section,
   article,
   form,
-  [class*="border-border"] {
+  main [class*="border-border"] {
     animation: paddler-fade-up 520ms ease-out both;
   }
 

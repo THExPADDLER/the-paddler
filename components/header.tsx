@@ -86,7 +86,7 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/85 backdrop-blur-md border-b border-border/50">
+      <header className="site-header fixed top-0 left-0 right-0 z-[2000] bg-background/85 backdrop-blur-md border-b border-border/50">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid h-16 grid-cols-[88px_1fr_88px] items-center gap-2 sm:flex sm:justify-between sm:gap-0">
             <div className="flex items-center gap-2 justify-start">
@@ -108,7 +108,7 @@ export function Header() {
                     setProfileOpen(false)
                     setSearchOpen(false)
                   }}
-                  className="p-2 hover:bg-secondary rounded-sm transition-colors"
+                className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
                   aria-label="Open menu"
                 >
                   {menuOpen ? <X className="w-7 h-7 sm:w-6 sm:h-6" /> : <Menu className="w-7 h-7 sm:w-6 sm:h-6" />}
@@ -119,7 +119,7 @@ export function Header() {
             <Link
               href="/"
               onClick={closeAll}
-              className="flex min-w-0 items-center justify-center overflow-visible sm:absolute sm:left-1/2 sm:-translate-x-1/2"
+              className="relative z-[2001] flex min-w-0 items-center justify-center overflow-visible sm:absolute sm:left-1/2 sm:-translate-x-1/2"
             >
               <Image
                 src="/images/paddler-logo-removedbg.png"
@@ -138,7 +138,7 @@ export function Header() {
                   setMenuOpen(false)
                   setProfileOpen(false)
                 }}
-                className="relative hidden p-2 hover:bg-secondary rounded-sm transition-colors sm:block"
+                className="relative z-[2001] hidden p-2 hover:bg-secondary rounded-sm transition-colors sm:block"
                 aria-label="Search"
               >
                 <Search className="w-5 h-5" />
@@ -148,7 +148,7 @@ export function Header() {
                 <Link
                   href="/wishlist"
                   onClick={closeAll}
-                  className="relative hidden p-2 hover:bg-secondary rounded-sm transition-colors sm:block"
+                  className="relative z-[2001] hidden p-2 hover:bg-secondary rounded-sm transition-colors sm:block"
                   aria-label="Wishlist"
                 >
                   <Heart className="w-5 h-5" />
@@ -164,7 +164,7 @@ export function Header() {
               <Link
                 href="/cart"
                 onClick={closeAll}
-                className="relative p-2 hover:bg-secondary rounded-sm transition-colors"
+                className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
                 aria-label="Cart"
               >
                 <ShoppingCart className="w-6 h-6 sm:w-5 sm:h-5" />
@@ -176,21 +176,21 @@ export function Header() {
                 )}
               </Link>
 
-              <div className="relative">
+              <div className="relative z-[2001]">
                 <button
                   onClick={() => {
                     setProfileOpen(!profileOpen)
                     setMenuOpen(false)
                     setSearchOpen(false)
                   }}
-                  className="p-2 hover:bg-secondary rounded-sm transition-colors"
+                  className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
                   aria-label="Profile"
                 >
                   <User className="w-6 h-6 sm:w-5 sm:h-5" />
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 mt-3 w-64 bg-background border border-border shadow-2xl p-5">
+                  <div className="absolute right-0 z-[2002] mt-3 w-64 bg-background border border-border shadow-2xl p-5">
                     {user ? (
                       <>
                         <p className="text-sm font-bold text-foreground truncate">
@@ -247,7 +247,7 @@ export function Header() {
           </div>
 
           {menuOpen && !isAdminRoute && (
-            <div className="absolute left-4 top-20 w-72 bg-background border border-border shadow-2xl p-6">
+            <div className="absolute left-4 top-20 z-[2002] w-72 bg-background border border-border shadow-2xl p-6">
               <p className="text-xs tracking-[0.35em] text-muted-foreground mb-6">
                 MENU
               </p>
