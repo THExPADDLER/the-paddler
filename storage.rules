@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      ).data.role;
+    }
+
+    function isAdminOrStaff() {
+      return isSignedIn() && userRole() in ['admin', 'staff'];
+    }
+
+    function isImageUpload(maxSizeMb) {
+      return request.resource != null
+        && request.resource.size <= maxSizeMb * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /products/{fileName} {
+      allow read: if true;
+      allow write: if isAdminOrStaff() && isImageUpload(8);
+    }
+
+    match /homepage/{fileName} {
+      allow read: if true;
+      allow write: if isAdminOrStaff() && isImageUpload(10);
+    }
+
+    match /influencers/{fileName} {
+      allow read: if true;
+      allow write: if isAdminOrStaff() && isImageUpload(8);
+    }
+
+    match /returns/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isImageUpload(8);
+      allow update, delete: if isAdminOrStaff();
+    }
+
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

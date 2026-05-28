@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import { doc, setDoc } from "firebase/firestore"
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import { ImagePlus, Save, X } from "lucide-react"
 
 import { db, storage } from "@/lib/firebase"
+import { uploadImageAndGetUrl } from "@/lib/storage-upload"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -176,25 +176,17 @@ export default function AddProductPage() {
           setSaveStatus(`Uploading image ${index + 1} of ${imageFiles.length}...`)
 
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
-          const imageRef = ref(
-            storage,
-            `products/${finalSlug}-${index + 1}-${Date.now()}.${extension}`
-          )
-
-          await withTimeout(
-            uploadBytes(imageRef, file, {
-              contentType: file.type,
-            }),
-            "Image upload timed out. Check Firebase Storage rules and your internet connection."
-          )
-
-          setSaveStatus(`Getting image URL ${index + 1} of ${imageFiles.length}...`)
-
           imageUrls.push(
-            await withTimeout(
-              getDownloadURL(imageRef),
-              "Image URL fetch timed out. Check Firebase Storage access."
-            )
+            await uploadImageAndGetUrl({
+              storage,
+              file,
+              path: `products/${finalSlug}-${index + 1}-${Date.now()}.${extension}`,
+              onProgress: ({ percent }) => {
+                setSaveStatus(
+                  `Uploading image ${index + 1} of ${imageFiles.length} (${percent}%)...`
+                )
+              },
+            }),
           )
         }
 
