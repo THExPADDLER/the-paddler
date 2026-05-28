@@ -422,7 +422,6 @@ export default function AddProductPage() {
                       accept="image/*"
                       multiple
                       className="hidden"
-                      required={!image}
                       onChange={(event) => handleImageSelect(event.target.files)}
                     />
                   </label>
