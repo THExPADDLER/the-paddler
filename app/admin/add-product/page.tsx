@@ -34,6 +34,7 @@ const badgeOptions: Record<BadgeOption, { label: string | null; color: string | 
 export default function AddProductPage() {
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [mrp, setMrp] = useState("")
   const [price, setPrice] = useState("")
   const [image, setImage] = useState("")
@@ -73,6 +74,14 @@ export default function AddProductPage() {
 
   const handleNameChange = (value: string) => {
     setName(value)
+
+    if (!slugManuallyEdited) {
+      setSlug(createSlug(value))
+    }
+  }
+
+  const handleSlugChange = (value: string) => {
+    setSlugManuallyEdited(true)
     setSlug(createSlug(value))
   }
 
@@ -117,6 +126,13 @@ export default function AddProductPage() {
     setLoading(true)
 
     try {
+      const finalSlug = slug || createSlug(name)
+
+      if (!finalSlug) {
+        alert("Please enter a product slug.")
+        return
+      }
+
       const selectedBadge = badgeOptions[badge]
       let imageUrl = image
       let imageUrls = image ? [image] : []
@@ -128,7 +144,7 @@ export default function AddProductPage() {
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
           const imageRef = ref(
             storage,
-            `products/${slug || createSlug(name)}-${index + 1}-${Date.now()}.${extension}`
+            `products/${finalSlug}-${index + 1}-${Date.now()}.${extension}`
           )
 
           await uploadBytes(imageRef, file, {
@@ -146,9 +162,9 @@ export default function AddProductPage() {
         return
       }
 
-      await setDoc(doc(db, "products", slug), {
+      await setDoc(doc(db, "products", finalSlug), {
         id: Date.now(),
-        slug,
+        slug: finalSlug,
         name,
         description,
         longDescription,
@@ -190,6 +206,7 @@ export default function AddProductPage() {
 
       setName("")
       setSlug("")
+      setSlugManuallyEdited(false)
       setMrp("")
       setPrice("")
       clearImage()
@@ -242,7 +259,7 @@ export default function AddProductPage() {
                 placeholder="Slug"
                 className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
                 value={slug}
-                onChange={(e) => setSlug(createSlug(e.target.value))}
+                onChange={(e) => handleSlugChange(e.target.value)}
                 required
               />
 
