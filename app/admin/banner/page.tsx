@@ -19,6 +19,7 @@ type HomepageForm = {
   heroMobileSlides: string[]
   countdownAt: string
   countdownTitle: string
+  countdownEnabled: boolean
 }
 
 const emptySlides = ["", "", ""]
@@ -101,6 +102,7 @@ export default function AdminBannerPage() {
     heroMobileSlides: [],
     countdownAt: "",
     countdownTitle: "",
+    countdownEnabled: true,
   })
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function AdminBannerPage() {
               ? [...emptySlides].map((_, index) => data.heroMobileSlides?.[index] || "")
               : [],
             countdownAt: toDatetimeLocal(data.countdownAt),
+            countdownEnabled: data.countdownEnabled !== false,
           }))
         }
       } catch (error) {
@@ -558,10 +561,34 @@ export default function AdminBannerPage() {
               </section>
 
               <section className="border border-border bg-secondary/20 p-6 sm:p-8">
-                <h2 className="text-2xl font-black flex items-center gap-2 mb-6">
-                  <Clock className="w-5 h-5" />
-                  DROP COUNTDOWN
-                </h2>
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-2xl font-black flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    DROP COUNTDOWN
+                  </h2>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        countdownEnabled: !current.countdownEnabled,
+                      }))
+                    }
+                    className={`inline-flex w-fit items-center gap-3 border px-4 py-3 text-xs font-black transition-colors ${
+                      form.countdownEnabled
+                        ? "border-green-500 bg-green-500/10 text-green-400"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                  >
+                    <span
+                      className={`h-3 w-3 rounded-full ${
+                        form.countdownEnabled ? "bg-green-400" : "bg-muted-foreground"
+                      }`}
+                    />
+                    COUNTDOWN {form.countdownEnabled ? "ON" : "OFF"}
+                  </button>
+                </div>
 
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div>

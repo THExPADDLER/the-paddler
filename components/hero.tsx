@@ -34,6 +34,7 @@ type HomepageContent = {
   heroMobileSlides?: string[]
   countdownAt?: string
   countdownTitle?: string
+  countdownEnabled?: boolean
 }
 
 const getTimeLeft = (target?: string) => {
@@ -61,6 +62,7 @@ export function Hero() {
   const [heroSubheading, setHeroSubheading] = useState(defaultHeroSubheading)
   const [countdownAt, setCountdownAt] = useState("")
   const [countdownTitle, setCountdownTitle] = useState("")
+  const [countdownEnabled, setCountdownEnabled] = useState(true)
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
@@ -101,6 +103,7 @@ export function Hero() {
         setHeroSubheading(content.heroSubheading || defaultHeroSubheading)
         setCountdownAt(content.countdownAt || "")
         setCountdownTitle(content.countdownTitle || "")
+        setCountdownEnabled(content.countdownEnabled !== false)
       } catch (error) {
         console.error("HERO CONTENT FETCH ERROR:", error)
       }
@@ -128,19 +131,20 @@ export function Hero() {
   }, [activeSlide, slides.length, mobileSlides.length])
 
   useEffect(() => {
-    if (!countdownAt) return
+    if (!countdownAt || !countdownEnabled) return
 
     const interval = window.setInterval(() => {
       setNow(Date.now())
     }, 1000)
 
     return () => window.clearInterval(interval)
-  }, [countdownAt])
+  }, [countdownAt, countdownEnabled])
 
   const timeLeft = useMemo(() => {
     void now
+    if (!countdownEnabled) return null
     return getTimeLeft(countdownAt)
-  }, [countdownAt, now])
+  }, [countdownAt, countdownEnabled, now])
 
   const headlineLines = heroHeadline
     .split("\n")
