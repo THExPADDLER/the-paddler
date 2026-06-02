@@ -238,7 +238,7 @@ export default function CheckoutPage() {
     }
   }, [loading, router, user])
 
-  const shipping = totalPrice >= 1500 ? 0 : 80
+  const shipping = 0
   const total = totalPrice + shipping - couponDiscount
   const selectedAddress = addresses.find(
     (address) => address.id === selectedAddressId

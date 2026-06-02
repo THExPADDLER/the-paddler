@@ -866,6 +866,346 @@ footer {
   transform: translateY(-5px);
 }
 
+@keyframes social-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes social-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.94) rotateX(8deg);
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+    filter: blur(0);
+  }
+}
+
+@keyframes social-grid-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-48px, -48px, 0);
+  }
+}
+
+@keyframes social-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.social-modal-backdrop {
+  animation: social-backdrop-in 220ms ease-out both;
+  perspective: 1000px;
+}
+
+.social-modal {
+  animation: social-modal-in 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  box-shadow:
+    0 40px 140px rgba(0, 0, 0, 0.82),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.social-modal::before,
+.social-modal::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.social-modal::after {
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(217, 249, 157, 0.9), transparent);
+  border: 0;
+}
+
+.social-modal-grid,
+.instagram-grid,
+.influencer-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.social-modal-grid {
+  animation: social-grid-drift 7s linear infinite;
+}
+
+.social-choice-card {
+  animation: social-card-in 420ms ease-out 130ms both;
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.social-choice-card-delay {
+  animation-delay: 220ms;
+}
+
+.social-choice-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0 36%, rgba(255, 255, 255, 0.14) 45%, transparent 55%);
+  transform: translateX(-120%);
+  transition: transform 520ms ease;
+}
+
+.social-choice-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(217, 249, 157, 0.65);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 22px 80px rgba(217, 249, 157, 0.12);
+}
+
+.social-choice-card:hover::before {
+  transform: translateX(120%);
+}
+
+@keyframes signal-copy-in {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes signal-card-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--signal-rotate));
+  }
+
+  50% {
+    transform: translateY(-16px) rotate(calc(var(--signal-rotate) * -0.4));
+  }
+}
+
+@keyframes signal-line {
+  from {
+    transform: translateY(-100%);
+  }
+
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes signal-info-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.instagram-signal-stage,
+.influencer-stage {
+  isolation: isolate;
+}
+
+.instagram-signal-stage::before,
+.influencer-stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 44%, rgba(217, 249, 157, 0.1) 45%, transparent 50%),
+    linear-gradient(290deg, transparent 0 62%, rgba(255, 255, 255, 0.07) 63%, transparent 70%);
+  opacity: 0.75;
+}
+
+.signal-scan-line {
+  animation: signal-line 4.8s ease-in-out infinite alternate;
+}
+
+.signal-copy {
+  animation: signal-copy-in 640ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.signal-phone-stack {
+  transform-style: preserve-3d;
+}
+
+.signal-phone-card {
+  width: min(72vw, 19rem);
+  animation: signal-card-float 6s ease-in-out infinite;
+  transition:
+    transform 320ms ease,
+    filter 320ms ease,
+    border-color 320ms ease;
+}
+
+.signal-phone-card:hover {
+  filter: brightness(1.15) contrast(1.08);
+  border-color: rgba(217, 249, 157, 0.72);
+}
+
+.signal-phone-card-1 {
+  --signal-rotate: -8deg;
+  left: 2%;
+  top: 6%;
+  z-index: 3;
+}
+
+.signal-phone-card-2 {
+  --signal-rotate: 7deg;
+  right: 5%;
+  top: 18%;
+  z-index: 2;
+  animation-delay: 400ms;
+}
+
+.signal-phone-card-3 {
+  --signal-rotate: -2deg;
+  left: 26%;
+  bottom: 0;
+  z-index: 4;
+  animation-delay: 800ms;
+}
+
+.signal-info-card {
+  animation: signal-info-in 560ms ease-out both;
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease;
+}
+
+.signal-info-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(217, 249, 157, 0.8), transparent);
+  transform: translateX(-100%);
+  transition: transform 420ms ease;
+}
+
+.signal-info-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(217, 249, 157, 0.55);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.signal-info-card:hover::after {
+  transform: translateX(100%);
+}
+
+@keyframes influencer-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) skewY(1.5deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) skewY(0deg);
+  }
+}
+
+@keyframes influencer-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(38px) rotate(-1.2deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.influencer-control-panel,
+.influencer-apply {
+  animation: influencer-panel-in 640ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.influencer-card {
+  animation: influencer-card-in 640ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    transform 280ms ease,
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.influencer-card::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  z-index: 10;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.influencer-card:hover {
+  transform: translateY(-10px);
+  border-color: rgba(217, 249, 157, 0.58);
+  box-shadow: 0 34px 110px rgba(217, 249, 157, 0.1);
+}
+
+@media (max-width: 767px) {
+  .signal-phone-stack {
+    min-height: 440px;
+  }
+
+  .signal-phone-card {
+    width: min(68vw, 15rem);
+  }
+
+  .signal-phone-card-1 {
+    left: 0;
+    top: 8%;
+  }
+
+  .signal-phone-card-2 {
+    right: 0;
+    top: 22%;
+  }
+
+  .signal-phone-card-3 {
+    left: 15%;
+    bottom: 0;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   main > div,
   main section,

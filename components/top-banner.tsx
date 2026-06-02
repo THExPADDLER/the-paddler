@@ -4,11 +4,11 @@ export function TopBanner() {
       <div className="whitespace-nowrap animate-marquee py-2 text-xs font-black tracking-[0.25em]">
         <span className="mx-8">NEW DROP LIVE</span>
         <span className="mx-8">SECURE ONLINE PAYMENTS</span>
-        <span className="mx-8">FREE SHIPPING ABOVE ₹1500</span>
+        <span className="mx-8">FREE SHIPPING ON EVERY ORDER</span>
         <span className="mx-8">LIMITED PIECES ONLY</span>
         <span className="mx-8">NEW DROP LIVE</span>
         <span className="mx-8">SECURE ONLINE PAYMENTS</span>
-        <span className="mx-8">FREE SHIPPING ABOVE ₹1500</span>
+        <span className="mx-8">FREE SHIPPING ON EVERY ORDER</span>
         <span className="mx-8">LIMITED PIECES ONLY</span>
       </div>
     </div>

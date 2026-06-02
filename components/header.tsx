@@ -5,12 +5,14 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   ArrowLeft,
+  ArrowRight,
   Heart,
   Instagram,
   LogOut,
   Menu,
   Search,
   ShoppingCart,
+  UsersRound,
   User,
   X,
 } from "lucide-react"
@@ -272,36 +274,78 @@ export function Header() {
       )}
 
       {socialOpen && !isAdminRoute && (
-        <div className="fixed left-4 right-4 top-20 z-[3002] border border-border bg-background p-5 shadow-2xl sm:left-8 sm:right-auto sm:w-80">
-          <p className="mb-5 text-xs tracking-[0.35em] text-muted-foreground">
-            SOCIAL
-          </p>
+        <div
+          className="social-modal-backdrop fixed inset-0 z-[3100] flex items-center justify-center bg-black/80 px-4 backdrop-blur-md"
+          onClick={() => setSocialOpen(false)}
+        >
+          <div
+            className="social-modal relative w-full max-w-2xl overflow-hidden border border-white/15 bg-black p-5 text-white shadow-2xl sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="social-modal-grid absolute inset-0 opacity-60" />
+            <div className="pointer-events-none absolute -left-12 top-10 h-24 w-1/2 rotate-[-18deg] bg-white/10 blur-2xl" />
+            <div className="pointer-events-none absolute -right-16 bottom-12 h-28 w-2/3 rotate-[-14deg] bg-lime-300/10 blur-2xl" />
 
-          <div className="grid gap-3">
-            <Link
-              href="/instagram"
-              onClick={closeAll}
-              className="group border border-border bg-secondary/20 p-5 transition-colors hover:bg-foreground hover:text-background"
+            <button
+              type="button"
+              onClick={() => setSocialOpen(false)}
+              className="absolute right-4 top-4 z-10 border border-white/15 bg-white/5 p-2 text-white hover:bg-white hover:text-black"
+              aria-label="Close social options"
             >
-              <p className="flex items-center gap-3 text-lg font-black">
-                <Instagram className="h-5 w-5" />
-                Our Instagram
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground group-hover:text-background/70">
-                Drops, reels, behind the scenes and launch updates.
-              </p>
-            </Link>
+              <X className="h-5 w-5" />
+            </button>
 
-            <Link
-              href="/influencers"
-              onClick={closeAll}
-              className="group border border-border bg-secondary/20 p-5 transition-colors hover:bg-foreground hover:text-background"
-            >
-              <p className="text-lg font-black">Influencers</p>
-              <p className="mt-2 text-sm text-muted-foreground group-hover:text-background/70">
-                See creators, shoots and coupon collaborations.
+            <div className="relative z-10">
+              <p className="mb-3 inline-flex border border-white/15 bg-white/5 px-3 py-2 text-[10px] font-bold tracking-[0.38em] text-white/70">
+                CONNECT THE DROP
               </p>
-            </Link>
+
+              <h2 className="max-w-xl text-4xl font-black leading-none sm:text-6xl">
+                CHOOSE YOUR SIGNAL
+              </h2>
+
+              <p className="mt-4 max-w-lg text-sm leading-6 text-white/60 sm:text-base">
+                Jump into the official feed or explore the creators carrying THE PADDLER energy.
+              </p>
+
+              <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                <Link
+                  href="/instagram"
+                  onClick={closeAll}
+                  className="social-choice-card group relative overflow-hidden border border-white/15 bg-white/[0.04] p-5"
+                >
+                  <div className="mb-12 flex items-center justify-between">
+                    <span className="grid h-12 w-12 place-items-center border border-white/15 bg-white text-black">
+                      <Instagram className="h-6 w-6" />
+                    </span>
+                    <ArrowRight className="h-5 w-5 text-white/50 transition-transform group-hover:translate-x-1 group-hover:text-lime-200" />
+                  </div>
+
+                  <p className="text-2xl font-black">Our Instagram</p>
+                  <p className="mt-2 text-sm leading-6 text-white/60">
+                    Reels, launch alerts, behind the scenes, and drop heat.
+                  </p>
+                </Link>
+
+                <Link
+                  href="/influencers"
+                  onClick={closeAll}
+                  className="social-choice-card social-choice-card-delay group relative overflow-hidden border border-white/15 bg-white/[0.04] p-5"
+                >
+                  <div className="mb-12 flex items-center justify-between">
+                    <span className="grid h-12 w-12 place-items-center border border-lime-200/40 bg-lime-200 text-black">
+                      <UsersRound className="h-6 w-6" />
+                    </span>
+                    <ArrowRight className="h-5 w-5 text-white/50 transition-transform group-hover:translate-x-1 group-hover:text-lime-200" />
+                  </div>
+
+                  <p className="text-2xl font-black">Influencers</p>
+                  <p className="mt-2 text-sm leading-6 text-white/60">
+                    Shoots, creator profiles, campaign energy, and street faces.
+                  </p>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       )}

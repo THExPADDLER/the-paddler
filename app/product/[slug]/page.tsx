@@ -809,7 +809,7 @@ export default function ProductPage() {
                 <div className="product-promise text-center">
                   <Truck className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">Free Shipping</p>
-                  <p className="text-xs text-muted-foreground">Orders ₹1500+</p>
+                  <p className="text-xs text-muted-foreground">Every Order</p>
                 </div>
 
                 <div className="product-promise text-center">

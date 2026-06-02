@@ -419,7 +419,7 @@ export default function CartPage() {
                       </svg>
 
                       <span>
-                        Express Shipping Available
+                        Free Shipping Included
                       </span>
                     </div>
 
