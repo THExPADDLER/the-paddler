@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Heart,
+  Instagram,
   LogOut,
   Menu,
   Search,
@@ -24,6 +25,7 @@ import { products } from "@/lib/products"
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [socialOpen, setSocialOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [user, setUser] = useState<FirebaseUser | null>(null)
@@ -80,6 +82,7 @@ export function Header() {
   const closeAll = () => {
     setMenuOpen(false)
     setProfileOpen(false)
+    setSocialOpen(false)
     setSearchOpen(false)
     setSearchQuery("")
   }
@@ -106,12 +109,29 @@ export function Header() {
                   onClick={() => {
                     setMenuOpen(!menuOpen)
                     setProfileOpen(false)
+                    setSocialOpen(false)
                     setSearchOpen(false)
                   }}
                 className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
                   aria-label="Open menu"
                 >
                   {menuOpen ? <X className="w-7 h-7 sm:w-6 sm:h-6" /> : <Menu className="w-7 h-7 sm:w-6 sm:h-6" />}
+                </button>
+              )}
+
+              {!isAdminRoute && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSocialOpen(!socialOpen)
+                    setMenuOpen(false)
+                    setProfileOpen(false)
+                    setSearchOpen(false)
+                  }}
+                  className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
+                  aria-label="Open Instagram options"
+                >
+                  <Instagram className="w-6 h-6 sm:w-5 sm:h-5" />
                 </button>
               )}
             </div>
@@ -137,6 +157,7 @@ export function Header() {
                   setSearchOpen(true)
                   setMenuOpen(false)
                   setProfileOpen(false)
+                  setSocialOpen(false)
                 }}
                 className="relative z-[2001] hidden p-2 hover:bg-secondary rounded-sm transition-colors sm:block"
                 aria-label="Search"
@@ -181,6 +202,7 @@ export function Header() {
                   onClick={() => {
                     setProfileOpen(!profileOpen)
                     setMenuOpen(false)
+                    setSocialOpen(false)
                     setSearchOpen(false)
                   }}
                   className="relative z-[2001] p-2 hover:bg-secondary rounded-sm transition-colors"
@@ -249,6 +271,41 @@ export function Header() {
         </div>
       )}
 
+      {socialOpen && !isAdminRoute && (
+        <div className="fixed left-4 right-4 top-20 z-[3002] border border-border bg-background p-5 shadow-2xl sm:left-8 sm:right-auto sm:w-80">
+          <p className="mb-5 text-xs tracking-[0.35em] text-muted-foreground">
+            SOCIAL
+          </p>
+
+          <div className="grid gap-3">
+            <Link
+              href="/instagram"
+              onClick={closeAll}
+              className="group border border-border bg-secondary/20 p-5 transition-colors hover:bg-foreground hover:text-background"
+            >
+              <p className="flex items-center gap-3 text-lg font-black">
+                <Instagram className="h-5 w-5" />
+                Our Instagram
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground group-hover:text-background/70">
+                Drops, reels, behind the scenes and launch updates.
+              </p>
+            </Link>
+
+            <Link
+              href="/influencers"
+              onClick={closeAll}
+              className="group border border-border bg-secondary/20 p-5 transition-colors hover:bg-foreground hover:text-background"
+            >
+              <p className="text-lg font-black">Influencers</p>
+              <p className="mt-2 text-sm text-muted-foreground group-hover:text-background/70">
+                See creators, shoots and coupon collaborations.
+              </p>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {menuOpen && !isAdminRoute && (
         <div className="fixed inset-x-0 bottom-0 top-16 z-[3001] w-screen overflow-y-auto bg-background border-t border-border p-8 shadow-2xl sm:left-4 sm:right-auto sm:top-20 sm:bottom-auto sm:w-72 sm:border sm:p-6">
           <p className="text-xs tracking-[0.35em] text-muted-foreground mb-8">
@@ -274,20 +331,12 @@ export function Header() {
               )}
             </Link>
 
-            <Link href="/instagram" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
-              Instagram
-            </Link>
-
             <Link href="/about" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
               About
             </Link>
 
             <Link href="/faq" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
               FAQ
-            </Link>
-
-            <Link href="/influencers" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
-              Influencers
             </Link>
 
             <Link href="/contact" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
