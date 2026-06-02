@@ -189,112 +189,113 @@ export function Header() {
                   <User className="w-6 h-6 sm:w-5 sm:h-5" />
                 </button>
 
-                {profileOpen && (
-                  <div className="fixed left-4 right-4 top-20 z-[3002] bg-background border border-border shadow-2xl p-5 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-64">
-                    {user ? (
-                      <>
-                        <p className="text-sm font-bold text-foreground truncate">
-                          {user.displayName || "Customer"}
-                        </p>
-
-                        <p className="text-xs text-muted-foreground truncate mt-1">
-                          {user.email}
-                        </p>
-
-                        <div className="h-px bg-border my-4" />
-
-                        <Link href="/account" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
-                          Edit Profile
-                        </Link>
-
-                        <Link href="/orders" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
-                          My Orders
-                        </Link>
-
-                        <Link href="/addresses" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
-                          Saved Addresses
-                        </Link>
-
-                        <Link href="/contact" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
-                          Contact Us
-                        </Link>
-
-                        <button
-                          onClick={handleLogout}
-                          className="flex items-center gap-2 mt-3 pt-4 border-t border-border w-full text-left text-sm text-red-400 hover:text-red-300"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Logout
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm font-bold mb-4">Account</p>
-
-                        <Link href="/login" onClick={closeAll} className="block w-full bg-foreground text-background text-center py-3 text-sm font-bold hover:bg-foreground/90">
-                          Login
-                        </Link>
-
-                        <Link href="/signup" onClick={closeAll} className="block text-center mt-4 text-sm text-muted-foreground hover:text-foreground underline">
-                          Create Account
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
-
-          {menuOpen && !isAdminRoute && (
-            <div className="fixed inset-x-0 bottom-0 top-16 z-[3002] w-screen overflow-y-auto bg-background border-t border-border p-8 shadow-2xl sm:absolute sm:bottom-auto sm:left-4 sm:top-20 sm:w-72 sm:border sm:p-6">
-              <p className="text-xs tracking-[0.35em] text-muted-foreground mb-6">
-                MENU
-              </p>
-
-              <div className="flex flex-col gap-4">
-                <Link href="/" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Home
-                </Link>
-
-                <Link href="/shop" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Shop
-                </Link>
-
-                <Link href="/wishlist" onClick={closeAll} className="flex items-center justify-between text-sm font-bold hover:text-muted-foreground">
-                  <span>Wishlist</span>
-
-                  {totalWishlistItems > 0 && (
-                    <span className="min-w-5 h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                      {totalWishlistItems}
-                    </span>
-                  )}
-                </Link>
-
-                <Link href="/instagram" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Instagram
-                </Link>
-
-                <Link href="/about" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  About
-                </Link>
-
-                <Link href="/faq" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  FAQ
-                </Link>
-
-                <Link href="/influencers" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Influencers
-                </Link>
-
-                <Link href="/contact" onClick={closeAll} className="text-sm font-bold hover:text-muted-foreground">
-                  Contact Us
-                </Link>
-              </div>
-            </div>
-          )}
         </div>
       </header>
+
+      {profileOpen && (
+        <div className="fixed left-4 right-4 top-20 z-[3002] bg-background border border-border shadow-2xl p-5 sm:left-auto sm:right-8 sm:w-64">
+          {user ? (
+            <>
+              <p className="text-sm font-bold text-foreground truncate">
+                {user.displayName || "Customer"}
+              </p>
+
+              <p className="text-xs text-muted-foreground truncate mt-1">
+                {user.email}
+              </p>
+
+              <div className="h-px bg-border my-4" />
+
+              <Link href="/account" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
+                Edit Profile
+              </Link>
+
+              <Link href="/orders" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
+                My Orders
+              </Link>
+
+              <Link href="/addresses" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
+                Saved Addresses
+              </Link>
+
+              <Link href="/contact" onClick={closeAll} className="block py-2 text-sm text-muted-foreground hover:text-foreground">
+                Contact Us
+              </Link>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 mt-3 pt-4 border-t border-border w-full text-left text-sm text-red-400 hover:text-red-300"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold mb-4">Account</p>
+
+              <Link href="/login" onClick={closeAll} className="block w-full bg-foreground text-background text-center py-3 text-sm font-bold hover:bg-foreground/90">
+                Login
+              </Link>
+
+              <Link href="/signup" onClick={closeAll} className="block text-center mt-4 text-sm text-muted-foreground hover:text-foreground underline">
+                Create Account
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+
+      {menuOpen && !isAdminRoute && (
+        <div className="fixed inset-x-0 bottom-0 top-16 z-[3001] w-screen overflow-y-auto bg-background border-t border-border p-8 shadow-2xl sm:left-4 sm:right-auto sm:top-20 sm:bottom-auto sm:w-72 sm:border sm:p-6">
+          <p className="text-xs tracking-[0.35em] text-muted-foreground mb-8">
+            MENU
+          </p>
+
+          <div className="flex flex-col gap-6 sm:gap-4">
+            <Link href="/" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              Home
+            </Link>
+
+            <Link href="/shop" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              Shop
+            </Link>
+
+            <Link href="/wishlist" onClick={closeAll} className="flex items-center justify-between text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              <span>Wishlist</span>
+
+              {totalWishlistItems > 0 && (
+                <span className="min-w-5 h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {totalWishlistItems}
+                </span>
+              )}
+            </Link>
+
+            <Link href="/instagram" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              Instagram
+            </Link>
+
+            <Link href="/about" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              About
+            </Link>
+
+            <Link href="/faq" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              FAQ
+            </Link>
+
+            <Link href="/influencers" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              Influencers
+            </Link>
+
+            <Link href="/contact" onClick={closeAll} className="text-2xl font-black hover:text-muted-foreground sm:text-sm sm:font-bold">
+              Contact Us
+            </Link>
+          </div>
+        </div>
+      )}
 
       {searchOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-xl text-white">
