@@ -43,6 +43,39 @@ const fromDatetimeLocal = (value: string) => {
 const isValidCountdownDate = (value: string) =>
   !value || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)
 
+const formatCountdownPreview = (value: string) => {
+  if (!value || !isValidCountdownDate(value)) return ""
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "full",
+    timeStyle: "short",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  }).format(date)
+}
+
+const getCountdownDistance = (value: string) => {
+  if (!value || !isValidCountdownDate(value)) return ""
+
+  const targetTime = new Date(value).getTime()
+  const distance = targetTime - Date.now()
+
+  if (!Number.isFinite(targetTime)) return ""
+  if (distance <= 0) return "Countdown target has already passed."
+
+  const days = Math.floor(distance / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((distance / (1000 * 60 * 60)) % 24)
+  const minutes = Math.floor((distance / (1000 * 60)) % 60)
+
+  return `${String(days).padStart(2, "0")} days ${String(hours).padStart(
+    2,
+    "0"
+  )} hrs ${String(minutes).padStart(2, "0")} min remaining`
+}
+
 export default function AdminBannerPage() {
   const countdownInputRef = useRef<HTMLInputElement | null>(null)
   const [saving, setSaving] = useState(false)
@@ -531,27 +564,41 @@ export default function AdminBannerPage() {
                 </h2>
 
                 <div className="grid sm:grid-cols-2 gap-5">
-                  <div className="relative">
-                    <input
-                      ref={countdownInputRef}
-                      type="datetime-local"
-                      className="w-full bg-background border border-border px-4 py-4 pr-14 outline-none text-white [color-scheme:dark]"
-                      value={form.countdownAt}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          countdownAt: event.target.value,
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      aria-label="Select countdown date and time"
-                      onClick={() => countdownInputRef.current?.showPicker?.()}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 border border-border bg-secondary p-2 text-white hover:bg-muted"
-                    >
-                      <CalendarClock className="h-4 w-4" />
-                    </button>
+                  <div>
+                    <div className="relative">
+                      <input
+                        ref={countdownInputRef}
+                        type="datetime-local"
+                        className="w-full bg-background border border-border px-4 py-4 pr-14 outline-none text-white [color-scheme:dark]"
+                        value={form.countdownAt}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            countdownAt: event.target.value,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        aria-label="Select countdown date and time"
+                        onClick={() => countdownInputRef.current?.showPicker?.()}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 border border-border bg-secondary p-2 text-white hover:bg-muted"
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {form.countdownAt && (
+                      <div className="mt-3 border border-border bg-background/70 px-4 py-3 text-xs text-muted-foreground">
+                        <p>
+                          Selected target:{" "}
+                          <span className="font-bold text-foreground">
+                            {formatCountdownPreview(form.countdownAt)}
+                          </span>
+                        </p>
+                        <p className="mt-1">{getCountdownDistance(form.countdownAt)}</p>
+                      </div>
+                    )}
                   </div>
 
                   <input
