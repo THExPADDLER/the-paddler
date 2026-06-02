@@ -8,10 +8,16 @@ import { db } from "@/lib/firebase"
 
 const allowedDuringMaintenance = [
   "/maintenance",
+  "/launching-soon",
   "/admin",
   "/login",
   "/forgot-password",
 ]
+
+const isAllowedPath = (pathname: string) =>
+  allowedDuringMaintenance.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
 
 export function MaintenanceGate() {
   const pathname = usePathname()
@@ -22,16 +28,26 @@ export function MaintenanceGate() {
       doc(db, "siteSettings", "maintenance"),
       (snapshot) => {
         const enabled = snapshot.exists() && snapshot.data().enabled === true
-        const allowed = allowedDuringMaintenance.some((path) =>
-          pathname === path || pathname.startsWith(`${path}/`)
-        )
+        const mode = snapshot.exists() ? snapshot.data().mode : undefined
+        const targetPath = mode === "launching" ? "/launching-soon" : "/maintenance"
+        const allowed = isAllowedPath(pathname)
 
         if (enabled && !allowed) {
+          router.replace(targetPath)
+          return
+        }
+
+        if (enabled && pathname === "/maintenance" && targetPath === "/launching-soon") {
+          router.replace("/launching-soon")
+          return
+        }
+
+        if (enabled && pathname === "/launching-soon" && targetPath === "/maintenance") {
           router.replace("/maintenance")
           return
         }
 
-        if (!enabled && pathname === "/maintenance") {
+        if (!enabled && (pathname === "/maintenance" || pathname === "/launching-soon")) {
           router.replace("/")
         }
       },

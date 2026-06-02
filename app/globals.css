@@ -264,6 +264,143 @@ html {
   animation: thank-you-step 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+@keyframes launching-scan {
+  from {
+    transform: translateY(-10vh);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(110vh);
+    opacity: 0;
+  }
+}
+
+@keyframes launching-beam {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) skewX(-12deg);
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: translate3d(6vw, -3vh, 0) skewX(-18deg);
+    opacity: 0.36;
+  }
+}
+
+@keyframes launching-panel-rise {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes launching-tile-pulse {
+  0%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(0);
+  }
+
+  50% {
+    border-color: rgba(217, 249, 157, 0.65);
+    transform: translateY(-4px);
+  }
+}
+
+.launching-stage {
+  isolation: isolate;
+}
+
+.launching-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 74%);
+}
+
+.launching-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent 0 36%, rgba(255, 255, 255, 0.08) 37%, transparent 45%),
+    linear-gradient(250deg, transparent 0 52%, rgba(217, 249, 157, 0.12) 54%, transparent 62%);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.launching-scan {
+  animation: launching-scan 3.4s ease-in-out infinite;
+}
+
+.launching-beam {
+  position: absolute;
+  width: 44vw;
+  height: 14vh;
+  background: rgba(255, 255, 255, 0.12);
+  filter: blur(42px);
+  pointer-events: none;
+  animation: launching-beam 7s ease-in-out infinite;
+}
+
+.launching-beam-a {
+  left: -18vw;
+  top: 22vh;
+}
+
+.launching-beam-b {
+  right: -20vw;
+  bottom: 18vh;
+  animation-delay: 1.5s;
+}
+
+.launching-copy,
+.launching-panel {
+  animation: launching-panel-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.launching-panel {
+  animation-delay: 120ms;
+}
+
+.launching-title {
+  text-shadow: 0 0 80px rgba(255, 255, 255, 0.16);
+}
+
+.launching-time-tile:nth-child(1) {
+  animation: launching-tile-pulse 3s ease-in-out infinite;
+}
+
+.launching-time-tile:nth-child(2) {
+  animation: launching-tile-pulse 3s ease-in-out 0.16s infinite;
+}
+
+.launching-time-tile:nth-child(3) {
+  animation: launching-tile-pulse 3s ease-in-out 0.32s infinite;
+}
+
+.launching-time-tile:nth-child(4) {
+  animation: launching-tile-pulse 3s ease-in-out 0.48s infinite;
+}
+
+.launching-card {
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
 .orders-stage {
   position: relative;
   overflow: hidden;

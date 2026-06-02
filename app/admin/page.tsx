@@ -15,6 +15,7 @@ import {
   FileDown,
   UserRoundCheck,
   CalendarDays,
+  Rocket,
 } from "lucide-react"
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 
@@ -45,6 +46,8 @@ type OrderRecord = {
     status?: string
   }
 }
+
+type MaintenanceMode = "maintenance" | "launching"
 
 const emptyStats: DashboardStats = {
   totalOrders: 0,
@@ -142,6 +145,8 @@ export default function AdminPage() {
   const [role, setRole] = useState<UserRole>("customer")
   const [loadingStats, setLoadingStats] = useState(true)
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
+  const [maintenanceMode, setMaintenanceMode] =
+    useState<MaintenanceMode>("maintenance")
   const [savingMaintenance, setSavingMaintenance] = useState(false)
   const [reportMenuOpen, setReportMenuOpen] = useState(false)
   const [reportFrom, setReportFrom] = useState("")
@@ -221,7 +226,9 @@ export default function AdminPage() {
     const fetchMaintenanceMode = async () => {
       try {
         const snapshot = await getDoc(doc(db, "siteSettings", "maintenance"))
-        setMaintenanceEnabled(snapshot.exists() && snapshot.data().enabled === true)
+        const data = snapshot.exists() ? snapshot.data() : null
+        setMaintenanceEnabled(data?.enabled === true)
+        setMaintenanceMode(data?.mode === "launching" ? "launching" : "maintenance")
       } catch (error) {
         console.error("MAINTENANCE MODE FETCH ERROR:", error)
       }
@@ -230,12 +237,16 @@ export default function AdminPage() {
     fetchMaintenanceMode()
   }, [])
 
-  const toggleMaintenanceMode = async () => {
-    const nextEnabled = !maintenanceEnabled
+  const updateMaintenanceMode = async (
+    nextEnabled: boolean,
+    nextMode: MaintenanceMode = "maintenance"
+  ) => {
     const confirmed = window.confirm(
-      nextEnabled
-        ? "Take the live website down for maintenance? Customers will see the maintenance page."
-        : "Make the live website available to customers again?"
+      nextEnabled && nextMode === "launching"
+        ? "Show the pre-launch launching soon page to customers?"
+        : nextEnabled
+          ? "Take the live website down for maintenance? Customers will see the maintenance page."
+          : "Make the live website available to customers again?"
     )
 
     if (!confirmed) return
@@ -247,19 +258,35 @@ export default function AdminPage() {
         doc(db, "siteSettings", "maintenance"),
         {
           enabled: nextEnabled,
+          mode: nextEnabled ? nextMode : "maintenance",
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
       )
 
       setMaintenanceEnabled(nextEnabled)
-      alert(nextEnabled ? "Site is now in maintenance mode." : "Site is live again.")
+      setMaintenanceMode(nextEnabled ? nextMode : "maintenance")
+      alert(
+        nextEnabled
+          ? nextMode === "launching"
+            ? "Launch soon page is now live."
+            : "Site is now in maintenance mode."
+          : "Site is live again."
+      )
     } catch (error) {
       console.error("MAINTENANCE MODE SAVE ERROR:", error)
       alert("Unable to update maintenance mode.")
     } finally {
       setSavingMaintenance(false)
     }
+  }
+
+  const toggleMaintenanceMode = async () => {
+    await updateMaintenanceMode(!maintenanceEnabled, "maintenance")
+  }
+
+  const enableLaunchingPage = async () => {
+    await updateMaintenanceMode(true, "launching")
   }
 
   const downloadOrderReport = async () => {
@@ -480,6 +507,29 @@ export default function AdminPage() {
                     ? "MAKE SITE LIVE"
                     : "TAKE SITE DOWN"}
                 </button>
+
+                {!maintenanceEnabled && (
+                  <button
+                    type="button"
+                    onClick={enableLaunchingPage}
+                    disabled={savingMaintenance}
+                    className="inline-flex items-center gap-2 border border-lime-300/60 bg-lime-300/10 px-6 py-3 text-sm font-black text-lime-300 transition-colors hover:bg-lime-300 hover:text-black disabled:opacity-60"
+                  >
+                    <Rocket className="h-4 w-4" />
+                    LAUNCH SOON PAGE
+                  </button>
+                )}
+
+                {maintenanceEnabled && (
+                  <p className="text-xs font-black tracking-[0.25em] text-muted-foreground">
+                    ACTIVE:{" "}
+                    <span className="text-foreground">
+                      {maintenanceMode === "launching"
+                        ? "LAUNCHING SOON"
+                        : "MAINTENANCE"}
+                    </span>
+                  </p>
+                )}
               </div>
               )}
             </div>
