@@ -122,8 +122,8 @@ export default function CartPage() {
       <>
         <Header />
 
-        <main className="min-h-screen bg-background pt-24 pb-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <main className="cart-stage min-h-screen bg-background pt-24 pb-16">
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mb-6">
                 <ShoppingBag className="w-10 h-10 text-muted-foreground" />
@@ -158,8 +158,8 @@ export default function CartPage() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-background pt-24 pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="cart-stage min-h-screen bg-background pt-24 pb-16">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
@@ -189,7 +189,7 @@ export default function CartPage() {
                   return (
                     <div
                       key={`${item.id}-${item.size}`}
-                      className={`flex gap-4 sm:gap-6 p-4 bg-secondary/30 border ${
+                      className={`cart-line-card flex gap-4 sm:gap-6 p-4 bg-secondary/30 border ${
                         issue ? "border-red-500" : "border-border"
                       }`}
                     >
@@ -302,7 +302,7 @@ export default function CartPage() {
 
             {/* Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-secondary/30 border border-border p-6 sticky top-24">
+              <div className="cart-summary-panel bg-secondary/30 border border-border p-6 sticky top-24">
 
                 <h2 className="text-lg font-bold mb-6">
                   ORDER SUMMARY

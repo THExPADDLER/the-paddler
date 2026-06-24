@@ -75,6 +75,7 @@ export default function AddProductPage() {
   const [badge, setBadge] = useState<BadgeOption>("new-arrival")
   const [description, setDescription] = useState("")
   const [longDescription, setLongDescription] = useState("")
+  const [tagsText, setTagsText] = useState("")
   const [sizeStock, setSizeStock] = useState({
     S: "0",
     M: "0",
@@ -85,15 +86,20 @@ export default function AddProductPage() {
 
   const mrpNumber = Number(mrp)
   const priceNumber = Number(price)
+  const hasMrp = mrp.trim().length > 0
 
   const discountPercent =
-    mrpNumber > 0 && priceNumber > 0 && mrpNumber > priceNumber
+    hasMrp && mrpNumber > 0 && priceNumber > 0 && mrpNumber > priceNumber
       ? Math.round(((mrpNumber - priceNumber) / mrpNumber) * 100)
       : 0
   const totalStock = Object.values(sizeStock).reduce(
     (sum, value) => sum + Number(value || 0),
     0
   )
+  const productTags = tagsText
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
 
   const createSlug = (value: string) => {
     return value
@@ -149,7 +155,7 @@ export default function AddProductPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (mrpNumber < priceNumber) {
+    if (hasMrp && mrpNumber < priceNumber) {
       alert("MRP cannot be less than selling price.")
       return
     }
@@ -208,7 +214,7 @@ export default function AddProductPage() {
           description,
           longDescription,
 
-          mrp: mrpNumber,
+          mrp: hasMrp ? mrpNumber : null,
           price: priceNumber,
           discountPercent,
 
@@ -219,6 +225,7 @@ export default function AddProductPage() {
           sizes: ["S", "M", "L"],
           color,
           colorHex,
+          tags: productTags,
           details: [
             "240 GSM premium heavyweight cotton",
             "Oversized drop-shoulder fit",
@@ -256,6 +263,7 @@ export default function AddProductPage() {
       setBadge("new-arrival")
       setDescription("")
       setLongDescription("")
+      setTagsText("")
       setSizeStock({
         S: "0",
         M: "0",
@@ -308,11 +316,10 @@ export default function AddProductPage() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <input
                   type="number"
-                  placeholder="MRP e.g. 1999"
+                  placeholder="MRP optional e.g. 1999"
                   className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
                   value={mrp}
                   onChange={(e) => setMrp(e.target.value)}
-                  required
                 />
 
                 <input
@@ -335,9 +342,11 @@ export default function AddProductPage() {
                     ₹{price || "999"}
                   </span>
 
-                  <span className="text-sm text-muted-foreground line-through pb-1">
-                    ₹{mrp || "1999"}
-                  </span>
+                  {hasMrp && (
+                    <span className="text-sm text-muted-foreground line-through pb-1">
+                      ₹{mrp}
+                    </span>
+                  )}
 
                   {discountPercent > 0 && (
                     <span className="text-sm font-black text-green-400 pb-1">
@@ -463,6 +472,24 @@ export default function AddProductPage() {
                 onChange={(e) => setLongDescription(e.target.value)}
                 required
               />
+
+              <div className="border border-border bg-background p-5">
+                <label className="block">
+                  <span className="mb-3 block text-xs tracking-[0.3em] text-muted-foreground">
+                    SEO / PRODUCT TAGS
+                  </span>
+                  <textarea
+                    placeholder="oversized t-shirt, black tee, streetwear India, 240 gsm"
+                    className="w-full min-h-24 bg-background border border-border px-4 py-4 outline-none text-white resize-none"
+                    value={tagsText}
+                    onChange={(e) => setTagsText(e.target.value)}
+                  />
+                </label>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Add comma-separated tags. These are saved for product SEO,
+                  search and future filtering.
+                </p>
+              </div>
 
               <div className="border border-border bg-background p-5">
                 <div className="mb-4 flex items-center justify-between gap-4">

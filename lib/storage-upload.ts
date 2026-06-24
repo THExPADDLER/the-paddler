@@ -23,7 +23,7 @@ export const uploadImageAndGetUrl = ({
   storage,
   path,
   file,
-  stallTimeoutMs = 120000,
+  stallTimeoutMs = 25000,
   onProgress,
 }: UploadImageOptions) => {
   return new Promise<string>((resolve, reject) => {
@@ -45,7 +45,7 @@ export const uploadImageAndGetUrl = ({
       if (settled) return
       settled = true
       clearStallTimer()
-      reject(error)
+      reject(normalizeStorageError(error))
     }
 
     const succeed = (url: string) => {
@@ -61,7 +61,7 @@ export const uploadImageAndGetUrl = ({
         task.cancel()
         fail(
           new Error(
-            "Image upload did not make progress. Check Firebase Storage rules, image size, and your internet connection."
+            "Image upload did not start within 25 seconds. Check Firebase Storage rules, bucket name, and your internet connection."
           )
         )
       }, stallTimeoutMs)
@@ -94,4 +94,31 @@ export const uploadImageAndGetUrl = ({
       }
     )
   })
+}
+
+const normalizeStorageError = (error: unknown) => {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : ""
+
+  if (code === "storage/unauthorized") {
+    return new Error(
+      "Firebase Storage blocked this upload. Check Storage rules and make sure the logged-in admin can write to products/."
+    )
+  }
+
+  if (code === "storage/canceled") {
+    return new Error(
+      "Image upload was cancelled because it did not make progress. Try a smaller image or check Firebase Storage settings."
+    )
+  }
+
+  if (code === "storage/unknown") {
+    return new Error(
+      "Firebase Storage could not complete the upload. Check the storage bucket value and internet connection."
+    )
+  }
+
+  return error instanceof Error ? error : new Error("Image upload failed.")
 }

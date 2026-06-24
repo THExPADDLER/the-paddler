@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next"
 
 import { products } from "@/lib/products"
-
-const baseUrl = "https://thepaddler.in"
+import { siteUrl } from "@/lib/seo"
 
 const staticRoutes = [
   "",
@@ -24,7 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     ...staticRoutes.map((route) => ({
-      url: `${baseUrl}${route}`,
+      url: `${siteUrl}${route}`,
       lastModified: now,
       changeFrequency: (
         route === "" || route === "/shop" ? "weekly" : "monthly"
@@ -32,7 +31,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: route === "" ? 1 : route === "/shop" ? 0.9 : 0.6,
     })),
     ...products.map((product) => ({
-      url: `${baseUrl}/product/${product.slug}`,
+      url: `${siteUrl}/product/${product.slug}`,
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.8,

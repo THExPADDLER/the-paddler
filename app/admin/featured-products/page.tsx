@@ -22,6 +22,19 @@ const normalizeProduct = (product: Product): Product => ({
     : typeof product.stock === "number" ? product.stock > 0 : product.inStock,
 })
 
+const mergeFeaturedProducts = (firestoreProducts: Product[]): Product[] => {
+  const firestoreBySlug = new Map(
+    firestoreProducts
+      .filter((product) => product.slug)
+      .map((product) => [product.slug, product])
+  )
+
+  return localProducts.map((product) => {
+    const override = firestoreBySlug.get(product.slug)
+    return normalizeProduct(override ? { ...product, ...override } : product)
+  })
+}
+
 export default function AdminFeaturedProductsPage() {
   const [products, setProducts] = useState<Product[]>(
     localProducts.map(normalizeProduct)
@@ -42,8 +55,8 @@ export default function AdminFeaturedProductsPage() {
 
         if (!productsSnap.empty) {
           setProducts(
-            productsSnap.docs.map((item) =>
-              normalizeProduct(item.data() as Product)
+            mergeFeaturedProducts(
+              productsSnap.docs.map((item) => item.data() as Product)
             )
           )
         }

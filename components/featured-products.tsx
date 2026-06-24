@@ -8,11 +8,10 @@ import { Heart } from "lucide-react"
 import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
-import { products, type Product } from "@/lib/products"
+import { products as localProducts, type Product } from "@/lib/products"
 import { useWishlist } from "@/lib/wishlist-context"
 
 const normalizeProduct = (product: Product): Product => {
-  const fallbackMrp = product.mrp || 1999
   const totalStock = product.stockBySize
     ? Object.values(product.stockBySize).reduce((sum, value) => sum + Number(value || 0), 0)
     : product.stock
@@ -20,16 +19,33 @@ const normalizeProduct = (product: Product): Product => {
   return {
     ...product,
     images: product.images?.length ? product.images : [product.image],
-    mrp: fallbackMrp > product.price ? fallbackMrp : undefined,
+    mrp: product.mrp && product.mrp > product.price ? product.mrp : undefined,
     inStock:
       typeof totalStock === "number" ? totalStock > 0 : product.inStock,
     stock: typeof totalStock === "number" ? totalStock : product.stock,
   }
 }
 
+const mergeFeaturedProducts = (firestoreProducts: Product[]) => {
+  const overridesBySlug = new Map(
+    firestoreProducts.map((product) => [product.slug, product])
+  )
+
+  return localProducts.map((product) => {
+    const override = overridesBySlug.get(product.slug)
+
+    return normalizeProduct({
+      ...product,
+      ...(override || {}),
+      id: product.id,
+      slug: product.slug,
+    })
+  })
+}
+
 export function FeaturedProducts() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>(
-    products.slice(0, 4).map(normalizeProduct)
+    localProducts.slice(0, 4).map(normalizeProduct)
   )
   const [cursor, setCursor] = useState({ x: 50, y: 50 })
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
@@ -48,16 +64,17 @@ export function FeaturedProducts() {
         )
         const snapshot = await getDocs(productsQuery)
 
-        if (!snapshot.empty) {
-          const firestoreProducts = snapshot.docs.map((item) =>
-            normalizeProduct(item.data() as Product)
-          )
+        const mergedProducts = mergeFeaturedProducts(
+          snapshot.docs.map((item) => item.data() as Product)
+        )
+
+        if (mergedProducts.length > 0) {
           const selectedProducts = selectedSlugs
-            .map((slug) => firestoreProducts.find((product) => product.slug === slug))
+            .map((slug) => mergedProducts.find((product) => product.slug === slug))
             .filter(Boolean) as Product[]
 
           setFeaturedProducts(
-            (selectedProducts.length ? selectedProducts : firestoreProducts).slice(0, 4)
+            (selectedProducts.length ? selectedProducts : mergedProducts).slice(0, 4)
           )
         }
       } catch (error) {
@@ -145,7 +162,7 @@ export function FeaturedProducts() {
                         name: product.name,
                         description: product.description,
                         price: product.price,
-                        mrp: product.mrp,
+                        mrp: product.mrp || undefined,
                         image: product.image,
                         slug: product.slug,
                       })

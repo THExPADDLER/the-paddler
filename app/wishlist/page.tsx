@@ -15,19 +15,25 @@ export default function WishlistPage() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-black text-white pt-28 pb-16">
-        <div className="max-w-7xl mx-auto px-4">
+      <main className="wishlist-stage min-h-screen overflow-hidden bg-black text-white pt-28 pb-16">
+        <div className="relative z-10 max-w-7xl mx-auto px-4">
 
-          <p className="text-xs tracking-[0.35em] text-neutral-500 mb-3">
-            SAVED ITEMS
-          </p>
+          <div className="mb-12 border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+            <p className="text-xs tracking-[0.35em] text-neutral-500 mb-3">
+              SAVED ITEMS
+            </p>
 
-          <h1 className="text-4xl font-black mb-12">
-            YOUR WISHLIST
-          </h1>
+            <h1 className="text-4xl sm:text-6xl font-black">
+              YOUR WISHLIST
+            </h1>
+
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">
+              Your private drop vault. Keep the pieces here before they vanish from the run.
+            </p>
+          </div>
 
           {items.length === 0 ? (
-            <div className="border border-neutral-800 p-16 text-center">
+            <div className="wishlist-panel border border-neutral-800 p-16 text-center">
               <Heart className="w-12 h-12 mx-auto mb-6 text-neutral-500" />
 
               <h2 className="text-2xl font-bold mb-3">
@@ -51,15 +57,15 @@ export default function WishlistPage() {
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="border border-neutral-800 bg-black"
+                  className="wishlist-panel group border border-neutral-800 bg-black"
                 >
-                  <div className="relative w-full h-[360px] bg-neutral-900">
+                  <div className="relative w-full h-[360px] overflow-hidden bg-neutral-900">
                     <Image
                       src={item.image}
                       alt={item.name}
                       width={500}
                       height={650}
-                      className="object-cover"
+                      className="object-cover transition-transform duration-700 group-hover:scale-110"
                       priority
                     />
                   </div>

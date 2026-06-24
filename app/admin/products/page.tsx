@@ -40,6 +40,26 @@ const normalizeProduct = (
   }
 }
 
+const mergeAdminProducts = (firestoreProducts: Array<Product & { stock?: number }>) => {
+  const overridesBySlug = new Map(
+    firestoreProducts.map((product) => [product.slug, product])
+  )
+
+  return localProducts.map((product) => {
+    const override = overridesBySlug.get(product.slug)
+
+    return normalizeProduct(
+      {
+        ...product,
+        ...(override || {}),
+        id: product.id,
+        slug: product.slug,
+      },
+      override ? "firestore" : "local"
+    )
+  })
+}
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProduct[]>(
     localProducts.map((product) => normalizeProduct(product, "local"))
@@ -56,14 +76,9 @@ export default function AdminProductsPage() {
       )
       const snapshot = await getDocs(productsQuery)
 
-      if (snapshot.empty) {
-        setProducts(localProducts.map((product) => normalizeProduct(product, "local")))
-        return
-      }
-
       setProducts(
-        snapshot.docs.map((item) =>
-          normalizeProduct(item.data() as Product & { stock?: number }, "firestore")
+        mergeAdminProducts(
+          snapshot.docs.map((item) => item.data() as Product & { stock?: number })
         )
       )
     } catch (error) {
@@ -80,7 +95,7 @@ export default function AdminProductsPage() {
 
   const handleDelete = async (product: AdminProduct) => {
     if (product.source !== "firestore") {
-      alert("Local demo products cannot be deleted from Firestore.")
+      alert("This product is part of the local launch catalog. Edit it instead of deleting it.")
       return
     }
 

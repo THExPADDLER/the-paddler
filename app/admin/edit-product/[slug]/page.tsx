@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { doc, getDoc, setDoc } from "firebase/firestore"
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import { ImagePlus, Save, X } from "lucide-react"
 
 import { Footer } from "@/components/footer"
@@ -11,6 +10,7 @@ import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
 import { db, storage } from "@/lib/firebase"
 import { getProductBySlug, type Product } from "@/lib/products"
+import { uploadImageAndGetUrl } from "@/lib/storage-upload"
 
 type BadgeOption = "new-arrival" | "most-selling" | "bestseller" | "none"
 
@@ -58,6 +58,7 @@ export default function EditProductPage() {
   const [badge, setBadge] = useState<BadgeOption>("new-arrival")
   const [description, setDescription] = useState("")
   const [longDescription, setLongDescription] = useState("")
+  const [tagsText, setTagsText] = useState("")
   const [sizeStock, setSizeStock] = useState({
     S: "0",
     M: "0",
@@ -65,17 +66,23 @@ export default function EditProductPage() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState("")
 
   const mrpNumber = Number(mrp)
   const priceNumber = Number(price)
+  const hasMrp = mrp.trim().length > 0
   const discountPercent =
-    mrpNumber > 0 && priceNumber > 0 && mrpNumber > priceNumber
+    hasMrp && mrpNumber > 0 && priceNumber > 0 && mrpNumber > priceNumber
       ? Math.round(((mrpNumber - priceNumber) / mrpNumber) * 100)
       : 0
   const totalStock = Object.values(sizeStock).reduce(
     (sum, value) => sum + Number(value || 0),
     0
   )
+  const productTags = tagsText
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -102,6 +109,7 @@ export default function EditProductPage() {
         setBadge(getBadgeOption(product.badge))
         setDescription(product.description)
         setLongDescription(product.longDescription)
+        setTagsText(product.tags?.join(", ") || "")
         const legacyStock = Number(product.stock ?? (product.inStock ? 20 : 0))
         const fallbackSizeStock = {
           S: Math.floor(legacyStock / 3),
@@ -158,12 +166,13 @@ export default function EditProductPage() {
 
     if (!originalProduct) return
 
-    if (mrpNumber < priceNumber) {
+    if (hasMrp && mrpNumber < priceNumber) {
       alert("MRP cannot be less than selling price.")
       return
     }
 
     setSaving(true)
+    setSaveStatus("Preparing product...")
 
     try {
       const selectedBadge = badgeOptions[badge]
@@ -174,17 +183,21 @@ export default function EditProductPage() {
         imageUrls = []
 
         for (const [index, file] of imageFiles.entries()) {
+          setSaveStatus(`Uploading image ${index + 1} of ${imageFiles.length}...`)
+
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
-          const imageRef = ref(
-            storage,
-            `products/${slug}-${index + 1}-${Date.now()}.${extension}`
+          imageUrls.push(
+            await uploadImageAndGetUrl({
+              storage,
+              file,
+              path: `products/${slug}-${index + 1}-${Date.now()}.${extension}`,
+              onProgress: ({ percent }) => {
+                setSaveStatus(
+                  `Uploading image ${index + 1} of ${imageFiles.length} (${percent}%)...`
+                )
+              },
+            })
           )
-
-          await uploadBytes(imageRef, file, {
-            contentType: file.type,
-          })
-
-          imageUrls.push(await getDownloadURL(imageRef))
         }
 
         imageUrl = imageUrls[0]
@@ -195,6 +208,8 @@ export default function EditProductPage() {
         return
       }
 
+      setSaveStatus("Saving product details...")
+
       await setDoc(
         doc(db, "products", slug),
         {
@@ -203,7 +218,7 @@ export default function EditProductPage() {
           name,
           description,
           longDescription,
-          mrp: mrpNumber,
+          mrp: hasMrp ? mrpNumber : null,
           price: priceNumber,
           discountPercent,
           image: imageUrl,
@@ -213,6 +228,7 @@ export default function EditProductPage() {
           sizes: originalProduct.sizes?.length ? originalProduct.sizes : ["S", "M", "L"],
           color,
           colorHex,
+          tags: productTags,
           details: originalProduct.details?.length
             ? originalProduct.details
             : [
@@ -247,8 +263,9 @@ export default function EditProductPage() {
       router.push("/admin/products")
     } catch (error) {
       console.error("EDIT PRODUCT SAVE ERROR:", error)
-      alert("Failed to update product.")
+      alert(`Failed to update product: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
+      setSaveStatus("")
       setSaving(false)
     }
   }
@@ -304,11 +321,10 @@ export default function EditProductPage() {
                 <div className="grid sm:grid-cols-2 gap-5">
                   <input
                     type="number"
-                    placeholder="MRP e.g. 1999"
+                    placeholder="MRP optional e.g. 1999"
                     className="w-full bg-background border border-border px-4 py-4 outline-none text-white"
                     value={mrp}
                     onChange={(event) => setMrp(event.target.value)}
-                    required
                   />
 
                   <input
@@ -331,9 +347,11 @@ export default function EditProductPage() {
                       Rs {price || "999"}
                     </span>
 
-                    <span className="text-sm text-muted-foreground line-through pb-1">
-                      Rs {mrp || "1999"}
-                    </span>
+                    {hasMrp && (
+                      <span className="text-sm text-muted-foreground line-through pb-1">
+                        Rs {mrp}
+                      </span>
+                    )}
 
                     {discountPercent > 0 && (
                       <span className="text-sm font-black text-green-400 pb-1">
@@ -468,6 +486,24 @@ export default function EditProductPage() {
                 />
 
                 <div className="border border-border bg-background p-5">
+                  <label className="block">
+                    <span className="mb-3 block text-xs tracking-[0.3em] text-muted-foreground">
+                      SEO / PRODUCT TAGS
+                    </span>
+                    <textarea
+                      placeholder="oversized t-shirt, black tee, streetwear India, 240 gsm"
+                      className="w-full min-h-24 bg-background border border-border px-4 py-4 outline-none text-white resize-none"
+                      value={tagsText}
+                      onChange={(event) => setTagsText(event.target.value)}
+                    />
+                  </label>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Add comma-separated tags. These are saved for product SEO,
+                    search and future filtering.
+                  </p>
+                </div>
+
+                <div className="border border-border bg-background p-5">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <p className="text-xs tracking-[0.3em] text-muted-foreground">
                       SIZE STOCK
@@ -505,7 +541,7 @@ export default function EditProductPage() {
                   className="w-full bg-foreground text-background py-4 font-black flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   <Save className="w-4 h-4" />
-                  {saving ? "SAVING..." : "SAVE CHANGES"}
+                  {saving ? saveStatus || "SAVING..." : "SAVE CHANGES"}
                 </button>
               </form>
             )}
