@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import { doc, getDoc, updateDoc } from "firebase/firestore/lite"
 
 import { serverDb } from "@/lib/firebase-server"
 import { razorpayFetch } from "@/lib/razorpay"
 import { assertOrderAccess, requireUserRequest } from "@/lib/admin-auth"
+
+export const runtime = "nodejs"
 
 type RefundResponse = {
   id: string
@@ -26,10 +27,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const orderRef = doc(serverDb, "orders", orderId)
-    const orderSnap = await getDoc(orderRef)
+    const orderRef = serverDb.collection("orders").doc(orderId)
+    const orderSnap = await orderRef.get()
 
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return NextResponse.json(
         {
           ok: false,
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const order = orderSnap.data()
+    const order = orderSnap.data() || {}
     assertOrderAccess(auth, order, "cancel this order")
 
     if (cancelledBy === "admin" && auth.role !== "admin" && auth.role !== "staff") {
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
       refundStatus = refund.status || "created"
     }
 
-    await updateDoc(orderRef, {
+    await orderRef.update({
       status: "cancelled",
       cancelledAt: now,
       cancelledBy:

@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userRole() {
+      return isSignedIn() && exists(userDoc())
+        ? get(userDoc()).data.role
+        : "customer";
+    }
+
+    function isBootstrapAdminEmail() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "vp982761@gmail.com",
+          "thexpaddler@gmail.com"
+        ];
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (userRole() == "admin" || isBootstrapAdminEmail());
+    }
+
+    function isStaff() {
+      return isSignedIn() && userRole() in ["admin", "staff"];
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && uid == request.auth.uid;
+    }
+
+    function ownerProfileCreate() {
+      return isOwner(request.resource.data.uid)
+        && (
+          request.resource.data.role == "customer"
+          || (isBootstrapAdminEmail() && request.resource.data.role == "admin")
+        );
+    }
+
+    function ownerProfileUpdate() {
+      return isOwner(resource.data.uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role;
+    }
+
+    function pendingOwnOrderCreate() {
+      return isOwner(request.resource.data.userId)
+        && request.resource.data.status == "pending_payment"
+        && request.resource.data.payment.status == "pending"
+        && request.resource.data.payment.gateway == "razorpay"
+        && request.resource.data.pricing.total is number
+        && request.resource.data.pricing.total > 0;
+    }
+
+    function ownPaymentFailureUpdate() {
+      return isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["status", "payment", "updatedAt"])
+        && request.resource.data.status == "payment_failed"
+        && request.resource.data.payment.status == "failed";
+    }
+
+    function ownPendingInvoiceCreate() {
+      return isOwner(request.resource.data.userId)
+        && request.resource.data.paymentStatus == "pending"
+        && request.resource.data.total is number
+        && request.resource.data.total > 0;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      allow create: if ownerProfileCreate() || isAdmin();
+      allow update: if ownerProfileUpdate() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isOwner(resource.data.userId) || isStaff();
+      allow create: if pendingOwnOrderCreate();
+      allow update: if ownPaymentFailureUpdate() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isOwner(resource.data.userId) || isStaff();
+      allow create: if ownPendingInvoiceCreate();
+      allow update, delete: if isStaff();
+    }
+
+    match /returns/{returnId} {
+      allow read: if isOwner(resource.data.userId) || isStaff();
+      allow create, update, delete: if isStaff();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /inventory/{inventoryId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteContent/{documentId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /siteSettings/{documentId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /influencers/{influencerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /notifyRequests/{requestId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.email is string
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.status == "open";
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

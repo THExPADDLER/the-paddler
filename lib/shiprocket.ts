@@ -1,5 +1,3 @@
-import { doc, getDoc, updateDoc } from "firebase/firestore/lite"
-
 import { serverDb } from "@/lib/firebase-server"
 import type { CartItem } from "@/lib/cart-context"
 
@@ -388,10 +386,10 @@ const extractCourierName = (data: Record<string, unknown>) => {
 }
 
 export const createShiprocketShipmentForOrder = async (orderId: string) => {
-  const orderRef = doc(serverDb, "orders", orderId)
-  const orderSnap = await getDoc(orderRef)
+  const orderRef = serverDb.collection("orders").doc(orderId)
+  const orderSnap = await orderRef.get()
 
-  if (!orderSnap.exists()) {
+  if (!orderSnap.exists) {
     throw new Error("Order not found for Shiprocket shipment.")
   }
 
@@ -414,7 +412,7 @@ export const createShiprocketShipmentForOrder = async (orderId: string) => {
 
   const shipment = await createShiprocketShipment(order)
 
-  await updateDoc(orderRef, {
+  await orderRef.update({
     shipment,
     trackingId: shipment.awb || "",
     trackingUrl: shipment.trackingUrl,
@@ -578,10 +576,10 @@ export const checkShiprocketServiceability = async (deliveryPostcode: string) =>
 }
 
 export const createShiprocketReturnForOrder = async (orderId: string) => {
-  const orderRef = doc(serverDb, "orders", orderId)
-  const orderSnap = await getDoc(orderRef)
+  const orderRef = serverDb.collection("orders").doc(orderId)
+  const orderSnap = await orderRef.get()
 
-  if (!orderSnap.exists()) {
+  if (!orderSnap.exists) {
     throw new Error("Order not found for Shiprocket return.")
   }
 
@@ -613,7 +611,7 @@ export const createShiprocketReturnForOrder = async (orderId: string) => {
     updatedAt: new Date().toISOString(),
   }
 
-  await updateDoc(orderRef, {
+  await orderRef.update({
     "shipment.return": returnShipment,
     status: "return_requested",
     updatedAt: new Date().toISOString(),

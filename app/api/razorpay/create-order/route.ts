@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import { doc, getDoc, updateDoc } from "firebase/firestore/lite"
 
 import { serverDb } from "@/lib/firebase-server"
 import { getRazorpayKeyId, razorpayFetch } from "@/lib/razorpay"
 import { assertOrderAccess, requireUserRequest } from "@/lib/admin-auth"
+
+export const runtime = "nodejs"
 
 type RazorpayOrder = {
   id: string
@@ -18,20 +19,20 @@ export async function POST(request: Request) {
     const auth = await requireUserRequest(request)
     const { orderId, amount, customer } = await request.json()
 
-    if (!orderId || !amount) {
+    if (!orderId) {
       return NextResponse.json(
         {
           ok: false,
-          message: "orderId and amount are required.",
+          message: "orderId is required.",
         },
         { status: 400 }
       )
     }
 
-    const orderRef = doc(serverDb, "orders", orderId)
-    const orderSnap = await getDoc(orderRef)
+    const orderRef = serverDb.collection("orders").doc(orderId)
+    const orderSnap = await orderRef.get()
 
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return NextResponse.json(
         {
           ok: false,
@@ -41,10 +42,55 @@ export async function POST(request: Request) {
       )
     }
 
-    const order = orderSnap.data()
+    const order = orderSnap.data() || {}
     assertOrderAccess(auth, order, "pay for this order")
 
-    const amountInPaise = Math.round(Number(amount) * 100)
+    if (order?.payment?.status === "success") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Payment is already successful for this order.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (order?.status === "cancelled") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Cancelled orders cannot be paid again.",
+        },
+        { status: 400 }
+      )
+    }
+
+    const savedTotal = Number(order?.pricing?.total || 0)
+
+    if (!Number.isFinite(savedTotal) || savedTotal <= 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Order total is invalid.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (
+      amount !== undefined &&
+      Math.round(Number(amount) * 100) !== Math.round(savedTotal * 100)
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Payment amount does not match the order total.",
+        },
+        { status: 400 }
+      )
+    }
+
+    const amountInPaise = Math.round(savedTotal * 100)
     const razorpayOrder = await razorpayFetch<RazorpayOrder>("/orders", {
       method: "POST",
       body: JSON.stringify({
@@ -60,7 +106,7 @@ export async function POST(request: Request) {
       }),
     })
 
-    await updateDoc(orderRef, {
+    await orderRef.update({
       "payment.gateway": "razorpay",
       "payment.status": "pending",
       "payment.razorpayOrderId": razorpayOrder.id,

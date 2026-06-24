@@ -1,34 +1,31 @@
 import { NextResponse } from "next/server"
 
-import {
-  createShiprocketShipment,
-  createShiprocketShipmentForOrder,
-} from "@/lib/shiprocket"
+import { createShiprocketShipmentForOrder } from "@/lib/shiprocket"
 import { requireStaffRequest } from "@/lib/admin-auth"
+
+export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
     await requireStaffRequest(request)
 
-    const { orderId, order } = await request.json()
+    const { orderId } = await request.json()
 
-    if (!orderId && !order?.id) {
+    if (!orderId) {
       return NextResponse.json(
         {
           ok: false,
-          message: "orderId or order is required.",
+          message: "orderId is required.",
         },
         { status: 400 }
       )
     }
 
-    const shipment = order
-      ? await createShiprocketShipment(order)
-      : await createShiprocketShipmentForOrder(orderId)
+    const shipment = await createShiprocketShipmentForOrder(orderId)
 
     return NextResponse.json({
       ok: true,
-      orderId: order?.id || orderId,
+      orderId,
       shipment,
     })
   } catch (error) {

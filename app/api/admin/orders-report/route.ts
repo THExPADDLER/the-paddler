@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
-import { collection, getDocs } from "firebase/firestore/lite"
 
 import { requireAdminRequest } from "@/lib/admin-auth"
 import { serverDb } from "@/lib/firebase-server"
+
+export const runtime = "nodejs"
 
 type OrderRecord = {
   id: string
@@ -402,7 +403,7 @@ export async function POST(request: Request) {
     }
     const fromDate = normalizeDateStart(from)
     const toDate = normalizeDateEnd(to)
-    const snapshot = await getDocs(collection(serverDb, "orders"))
+    const snapshot = await serverDb.collection("orders").get()
     const orders = snapshot.docs
       .map((item) => ({ id: item.id, data: item.data() as Record<string, unknown> }))
       .filter((order) => {

@@ -561,6 +561,7 @@ export default function CheckoutPage() {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                Authorization: `Bearer ${await user.getIdToken()}`,
               },
               body: JSON.stringify({
                 orderId: orderRef.id,

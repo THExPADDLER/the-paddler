@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore/lite"
 
 import { serverDb } from "@/lib/firebase-server"
 import { createShiprocketReturnForOrder } from "@/lib/shiprocket"
 import { assertOrderAccess, requireUserRequest } from "@/lib/admin-auth"
+
+export const runtime = "nodejs"
 
 const RTO_CHARGE = 70
 const RETURN_WINDOW_DAYS = 3
@@ -26,8 +27,6 @@ export async function POST(request: Request) {
     const auth = await requireUserRequest(request)
     const {
       orderId,
-      userId,
-      customerEmail,
       reason = "Customer return request",
       description = "",
       imageUrl = "",
@@ -43,10 +42,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const orderRef = doc(serverDb, "orders", orderId)
-    const orderSnap = await getDoc(orderRef)
+    const orderRef = serverDb.collection("orders").doc(orderId)
+    const orderSnap = await orderRef.get()
 
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return NextResponse.json(
         {
           ok: false,
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const order = orderSnap.data()
+    const order = orderSnap.data() || {}
     assertOrderAccess(auth, order, "request a return for this order")
 
     if (order.status !== "delivered") {
@@ -84,10 +83,10 @@ export async function POST(request: Request) {
     const shiprocketReturn = await createShiprocketReturnForOrder(orderId)
     const now = new Date().toISOString()
 
-    await addDoc(collection(serverDb, "returns"), {
+    await serverDb.collection("returns").add({
       orderId,
-      userId: userId || order.userId || "",
-      customerEmail: customerEmail || order.customer?.email || "",
+      userId: order.userId || auth.uid,
+      customerEmail: order.customer?.email || auth.email || "",
       items: order.items || [],
       amount,
       rtoCharge: RTO_CHARGE,
@@ -105,7 +104,7 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
 
-    await updateDoc(orderRef, {
+    await orderRef.update({
       status: "return_requested",
       returnRequested: true,
       returnRefundAmount: refundAmount,

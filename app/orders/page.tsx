@@ -333,6 +333,7 @@ export default function OrdersPage() {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                Authorization: `Bearer ${await user.getIdToken()}`,
               },
               body: JSON.stringify({
                 orderId: order.id,
@@ -418,14 +419,14 @@ export default function OrdersPage() {
     try {
       let imageUrl = ""
 
-      if (returnImage) {
-        const extension = returnImage.name.split(".").pop() || "jpg"
-        const imageRef = ref(
-          storage,
-          `returns/${order.id}-${Date.now()}.${extension}`
-        )
-        await uploadBytes(imageRef, returnImage)
-        imageUrl = await getDownloadURL(imageRef)
+        if (returnImage) {
+          const extension = returnImage.name.split(".").pop() || "jpg"
+          const imageRef = ref(
+            storage,
+            `returns/${user.uid}/${order.id}-${Date.now()}.${extension}`
+          )
+          await uploadBytes(imageRef, returnImage)
+          imageUrl = await getDownloadURL(imageRef)
       }
 
       const response = await fetch("/api/shiprocket/return", {

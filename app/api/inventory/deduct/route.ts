@@ -1,9 +1,88 @@
 import { NextResponse } from "next/server"
-import { doc, getDoc, updateDoc } from "firebase/firestore"
 
-import { db } from "@/lib/firebase"
 import { requireStaffRequest } from "@/lib/admin-auth"
-import { deductSharedInventoryForItems } from "@/lib/inventory"
+import { serverDb } from "@/lib/firebase-server"
+import {
+  createInventoryKey,
+  emptySizeStock,
+  type SizeStock,
+} from "@/lib/inventory"
+
+export const runtime = "nodejs"
+
+type InventoryCartItem = {
+  description?: string
+  quantity?: number
+  size?: string
+  color?: string
+}
+
+const deductSharedInventoryForItemsServer = async (
+  items: InventoryCartItem[]
+) => {
+  const grouped = items.reduce<Record<string, { color: string; sizes: SizeStock }>>(
+    (acc, item) => {
+      const color = item.color || item.description?.split("/")[0]?.trim() || ""
+      const key = createInventoryKey(color)
+
+      if (!key || !item.size) return acc
+
+      if (!acc[key]) {
+        acc[key] = {
+          color,
+          sizes: {},
+        }
+      }
+
+      acc[key].sizes[item.size] =
+        Number(acc[key].sizes[item.size] || 0) + Number(item.quantity || 0)
+
+      return acc
+    },
+    {}
+  )
+
+  await Promise.all(
+    Object.entries(grouped).map(([key, group]) =>
+      serverDb.runTransaction(async (transaction) => {
+        const inventoryRef = serverDb.collection("inventory").doc(key)
+        const snapshot = await transaction.get(inventoryRef)
+        const currentStock = snapshot.exists
+          ? ((snapshot.data()?.stockBySize || {}) as SizeStock)
+          : emptySizeStock
+
+        const nextStock: SizeStock = {
+          ...emptySizeStock,
+          ...currentStock,
+        }
+
+        Object.entries(group.sizes).forEach(([size, quantity]) => {
+          if (Number(nextStock[size] || 0) < quantity) {
+            throw new Error(
+              `Insufficient ${group.color} stock in size ${size}.`
+            )
+          }
+
+          nextStock[size] = Math.max(0, Number(nextStock[size] || 0) - quantity)
+        })
+
+        transaction.set(
+          inventoryRef,
+          {
+            color: group.color,
+            stockBySize: nextStock,
+            stock: Object.values(nextStock).reduce(
+              (sum, value) => sum + Number(value || 0),
+              0
+            ),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        )
+      })
+    )
+  )
+}
 
 export async function POST(request: Request) {
   try {
@@ -21,10 +100,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const orderRef = doc(db, "orders", orderId)
-    const orderSnap = await getDoc(orderRef)
+    const orderRef = serverDb.collection("orders").doc(orderId)
+    const orderSnap = await orderRef.get()
 
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return NextResponse.json(
         {
           ok: false,
@@ -34,7 +113,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const order = orderSnap.data()
+    const order = orderSnap.data() || {}
 
     if (order.payment?.status !== "success") {
       return NextResponse.json(
@@ -53,9 +132,11 @@ export async function POST(request: Request) {
       })
     }
 
-    await deductSharedInventoryForItems(order.items || [])
+    await deductSharedInventoryForItemsServer(
+      (order.items || []) as InventoryCartItem[]
+    )
 
-    await updateDoc(orderRef, {
+    await orderRef.update({
       inventoryDeducted: true,
       inventoryDeductedAt: new Date().toISOString(),
       inventoryError: null,

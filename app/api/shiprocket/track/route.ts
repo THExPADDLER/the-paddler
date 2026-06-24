@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
-import { doc, getDoc, updateDoc } from "firebase/firestore/lite"
 
 import { serverDb } from "@/lib/firebase-server"
 import { trackShiprocketAwb } from "@/lib/shiprocket"
-import { assertOrderAccess, requireUserRequest } from "@/lib/admin-auth"
+import {
+  assertOrderAccess,
+  requireStaffRequest,
+  requireUserRequest,
+} from "@/lib/admin-auth"
+
+export const runtime = "nodejs"
 
 const findStringByKeys = (value: unknown, keys: string[]): string | null => {
   if (!value || typeof value !== "object") return null
@@ -81,10 +86,11 @@ export async function GET(request: Request) {
     let order: Record<string, unknown> | null = null
 
     if (orderId) {
-      orderRef = doc(serverDb, "orders", orderId)
-      const orderSnap = await getDoc(orderRef)
+      const auth = await requireUserRequest(request)
+      orderRef = serverDb.collection("orders").doc(orderId)
+      const orderSnap = await orderRef.get()
 
-      if (!orderSnap.exists()) {
+      if (!orderSnap.exists) {
         return NextResponse.json(
           {
             ok: false,
@@ -94,9 +100,12 @@ export async function GET(request: Request) {
         )
       }
 
-      order = orderSnap.data()
+      order = orderSnap.data() || {}
+      assertOrderAccess(auth, order, "track this order")
       const shipment = order.shipment as Record<string, unknown> | undefined
       awb = awb || String(shipment?.awb || order.trackingId || "")
+    } else if (awb) {
+      await requireStaffRequest(request)
     }
 
     if (!awb) {
@@ -112,11 +121,8 @@ export async function GET(request: Request) {
     const tracking = await trackShiprocketAwb(awb)
     const normalizedStatus = normalizeShiprocketStatus(tracking)
 
-    if (orderRef && order && request.headers.get("authorization")) {
-      const auth = await requireUserRequest(request)
-      assertOrderAccess(auth, order, "sync tracking for this order")
-
-      await updateDoc(orderRef, {
+    if (orderRef && order) {
+      await orderRef.update({
         status: normalizedStatus,
         "shipment.status": normalizedStatus,
         "shipment.lastTrackingResponse": tracking,

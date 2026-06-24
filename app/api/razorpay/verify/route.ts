@@ -1,24 +1,33 @@
 import { after, NextResponse } from "next/server"
 import crypto from "crypto"
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  runTransaction,
-  updateDoc,
-  where,
-} from "firebase/firestore/lite"
 
+import { assertOrderAccess, requireUserRequest } from "@/lib/admin-auth"
 import { serverDb } from "@/lib/firebase-server"
-import { getRazorpayKeySecret } from "@/lib/razorpay"
 import {
   createInventoryKey,
   emptySizeStock,
   type SizeStock,
 } from "@/lib/inventory"
+import { getRazorpayKeySecret, razorpayFetch } from "@/lib/razorpay"
 import { createShiprocketShipmentForOrder } from "@/lib/shiprocket"
+
+export const runtime = "nodejs"
+
+type RazorpayPayment = {
+  id: string
+  order_id?: string
+  amount?: number
+  currency?: string
+  status?: string
+  captured?: boolean
+}
+
+type OrderItemForInventory = {
+  description?: string
+  quantity?: number
+  size?: string
+  color?: string
+}
 
 const verifySignature = (
   razorpayOrderId: string,
@@ -37,12 +46,7 @@ const verifySignature = (
 }
 
 const deductSharedInventoryForItemsServer = async (
-  items: Array<{
-    description?: string
-    quantity?: number
-    size?: string
-    color?: string
-  }>
+  items: OrderItemForInventory[]
 ) => {
   const grouped = items.reduce<Record<string, { color: string; sizes: SizeStock }>>(
     (acc, item) => {
@@ -68,11 +72,11 @@ const deductSharedInventoryForItemsServer = async (
 
   await Promise.all(
     Object.entries(grouped).map(([key, group]) =>
-      runTransaction(serverDb, async (transaction) => {
-        const inventoryRef = doc(serverDb, "inventory", key)
+      serverDb.runTransaction(async (transaction) => {
+        const inventoryRef = serverDb.collection("inventory").doc(key)
         const snapshot = await transaction.get(inventoryRef)
-        const currentStock = snapshot.exists()
-          ? ((snapshot.data().stockBySize || {}) as SizeStock)
+        const currentStock = snapshot.exists
+          ? ((snapshot.data()?.stockBySize || {}) as SizeStock)
           : emptySizeStock
 
         const nextStock: SizeStock = {
@@ -109,15 +113,14 @@ const deductSharedInventoryForItemsServer = async (
 }
 
 const syncInvoicePayment = async (orderId: string) => {
-  const invoicesQuery = query(
-    collection(serverDb, "invoices"),
-    where("orderId", "==", orderId)
-  )
-  const invoiceSnap = await getDocs(invoicesQuery)
+  const invoiceSnap = await serverDb
+    .collection("invoices")
+    .where("orderId", "==", orderId)
+    .get()
 
   await Promise.all(
     invoiceSnap.docs.map((invoiceDoc) =>
-      updateDoc(doc(serverDb, "invoices", invoiceDoc.id), {
+      invoiceDoc.ref.update({
         paymentStatus: "success",
         razorpayState: "signature_verified",
         updatedAt: new Date().toISOString(),
@@ -129,15 +132,17 @@ const syncInvoicePayment = async (orderId: string) => {
 const runSuccessSideEffects = async (orderId: string) => {
   let inventoryError: string | null = null
   let shipmentError: string | null = null
+  const orderRef = serverDb.collection("orders").doc(orderId)
 
   try {
-    const orderRef = doc(serverDb, "orders", orderId)
-    const orderSnap = await getDoc(orderRef)
-    const order = orderSnap.exists() ? orderSnap.data() : null
+    const orderSnap = await orderRef.get()
+    const order = orderSnap.exists ? orderSnap.data() : null
 
     if (order && order.inventoryDeducted !== true) {
-      await deductSharedInventoryForItemsServer(order.items || [])
-      await updateDoc(orderRef, {
+      await deductSharedInventoryForItemsServer(
+        (order.items || []) as OrderItemForInventory[]
+      )
+      await orderRef.update({
         inventoryDeducted: true,
         inventoryDeductedAt: new Date().toISOString(),
         inventoryError: null,
@@ -149,7 +154,7 @@ const runSuccessSideEffects = async (orderId: string) => {
       error instanceof Error
         ? error.message
         : "Unable to deduct shared inventory."
-    await updateDoc(doc(serverDb, "orders", orderId), {
+    await orderRef.update({
       inventoryError,
       updatedAt: new Date().toISOString(),
     })
@@ -163,7 +168,7 @@ const runSuccessSideEffects = async (orderId: string) => {
       error instanceof Error
         ? error.message
         : "Unable to create Shiprocket shipment."
-    await updateDoc(doc(serverDb, "orders", orderId), {
+    await orderRef.update({
       shipmentError,
       updatedAt: new Date().toISOString(),
     })
@@ -177,6 +182,7 @@ const runSuccessSideEffects = async (orderId: string) => {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUserRequest(request)
     const {
       orderId,
       razorpay_order_id,
@@ -199,6 +205,56 @@ export async function POST(request: Request) {
       )
     }
 
+    const orderRef = serverDb.collection("orders").doc(orderId)
+    const orderSnap = await orderRef.get()
+
+    if (!orderSnap.exists) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Order not found.",
+        },
+        { status: 404 }
+      )
+    }
+
+    const order = orderSnap.data() || {}
+    assertOrderAccess(auth, order, "verify payment for this order")
+
+    const payment = (order.payment || {}) as Record<string, unknown>
+    const expectedRazorpayOrderId = String(payment.razorpayOrderId || "")
+
+    if (!expectedRazorpayOrderId || expectedRazorpayOrderId !== razorpay_order_id) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Razorpay order does not match this website order.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (payment.status === "success") {
+      const existingPaymentId = String(payment.razorpayPaymentId || "")
+
+      if (existingPaymentId === razorpay_payment_id) {
+        return NextResponse.json({
+          ok: true,
+          orderId,
+          paymentStatus: "success",
+          shipmentQueued: false,
+        })
+      }
+
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Payment is already verified for this order.",
+        },
+        { status: 400 }
+      )
+    }
+
     if (
       !verifySignature(
         razorpay_order_id,
@@ -215,13 +271,56 @@ export async function POST(request: Request) {
       )
     }
 
-    await updateDoc(doc(serverDb, "orders", orderId), {
+    const razorpayPayment = await razorpayFetch<RazorpayPayment>(
+      `/payments/${razorpay_payment_id}`,
+      {
+        method: "GET",
+      }
+    )
+    const savedTotalPaise = Math.round(Number(order.pricing?.total || 0) * 100)
+    const paymentStatus = String(razorpayPayment.status || "").toLowerCase()
+
+    if (razorpayPayment.order_id !== razorpay_order_id) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Razorpay payment does not belong to this Razorpay order.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (Number(razorpayPayment.amount || 0) !== savedTotalPaise) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Paid amount does not match the order total.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (
+      String(razorpayPayment.currency || "").toUpperCase() !== "INR" ||
+      (paymentStatus !== "captured" && razorpayPayment.captured !== true)
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Razorpay payment is not captured yet.",
+        },
+        { status: 400 }
+      )
+    }
+
+    await orderRef.update({
       status: "paid",
       "payment.gateway": "razorpay",
       "payment.status": "success",
       "payment.razorpayOrderId": razorpay_order_id,
       "payment.razorpayPaymentId": razorpay_payment_id,
       "payment.razorpaySignature": razorpay_signature,
+      "payment.razorpayPayment": razorpayPayment,
       "payment.verifiedAt": new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })

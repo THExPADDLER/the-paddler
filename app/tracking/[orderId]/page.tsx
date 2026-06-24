@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { CheckCircle2, Clock3, Package, Truck } from "lucide-react"
 
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 type TrackingResult = {
   ok: boolean
@@ -41,16 +42,30 @@ const findTrackingData = (tracking?: Record<string, unknown>) => {
 
 export default function TrackingPage() {
   const params = useParams()
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const orderId = params.orderId as string
-  const [loading, setLoading] = useState(true)
+  const [trackingLoading, setTrackingLoading] = useState(true)
   const [result, setResult] = useState<TrackingResult | null>(null)
 
   useEffect(() => {
     const fetchTracking = async () => {
+      if (authLoading) return
+
+      if (!user) {
+        router.push(`/login?redirect=/tracking/${orderId}`)
+        return
+      }
+
       try {
-        setLoading(true)
+        setTrackingLoading(true)
         const response = await fetch(
-          `/api/shiprocket/track?orderId=${encodeURIComponent(orderId)}`
+          `/api/shiprocket/track?orderId=${encodeURIComponent(orderId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${await user.getIdToken()}`,
+            },
+          }
         )
         const data = await response.json()
         setResult(data)
@@ -61,12 +76,12 @@ export default function TrackingPage() {
           message: "Unable to load tracking right now.",
         })
       } finally {
-        setLoading(false)
+        setTrackingLoading(false)
       }
     }
 
     fetchTracking()
-  }, [orderId])
+  }, [authLoading, orderId, router, user])
 
   const trackingData = useMemo(
     () => findTrackingData(result?.tracking),
@@ -86,7 +101,7 @@ export default function TrackingPage() {
           <h1 className="text-4xl font-black mb-10">TRACK ORDER</h1>
 
           <div className="border border-border bg-secondary/20 p-6 sm:p-8">
-            {loading ? (
+            {trackingLoading ? (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Clock3 className="w-5 h-5 text-yellow-400" />
                 Fetching latest tracking from Shiprocket...

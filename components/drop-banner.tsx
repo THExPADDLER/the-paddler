@@ -82,7 +82,7 @@ export function DropBanner() {
         </h2>
 
         <p className="text-muted-foreground max-w-xl mx-auto mb-10">
-          Once it's gone, it's gone. No restocks unless the streets demand it.
+          Once it&apos;s gone, it&apos;s gone. No restocks unless the streets demand it.
         </p>
 
         {timeLeft && (

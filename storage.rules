@@ -37,9 +37,11 @@ service firebase.storage {
       allow write: if isAdminOrStaff() && isImageUpload(8);
     }
 
-    match /returns/{fileName} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isImageUpload(8);
+    match /returns/{userId}/{fileName} {
+      allow read: if isAdminOrStaff() || (isSignedIn() && request.auth.uid == userId);
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && isImageUpload(8);
       allow update, delete: if isAdminOrStaff();
     }
 

@@ -1,16 +1,6 @@
-import { doc, getDoc } from "firebase/firestore/lite"
-
-import { serverDb } from "@/lib/firebase-server"
-import { firebaseApiKey } from "@/lib/firebase-config"
+import { serverAuth, serverDb } from "@/lib/firebase-server"
 
 type RequestRole = "admin" | "staff" | "customer"
-
-type FirebaseLookupResponse = {
-  users?: Array<{
-    localId?: string
-    email?: string
-  }>
-}
 
 export type AuthorizedRequest = {
   uid: string
@@ -32,31 +22,21 @@ export const requireUserRequest = async (request: Request): Promise<AuthorizedRe
     throw new Error("Authorization token is required.")
   }
 
-  const lookupResponse = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ idToken: token }),
-    }
-  )
-  const lookupData = (await lookupResponse.json()) as FirebaseLookupResponse
-  const uid = lookupData.users?.[0]?.localId
+  const decodedToken = await serverAuth.verifyIdToken(token).catch(() => null)
+  const uid = decodedToken?.uid
 
-  if (!lookupResponse.ok || !uid) {
+  if (!uid) {
     throw new Error("Invalid authorization token.")
   }
 
-  const profile = await getDoc(doc(serverDb, "users", uid))
-  const savedRole = profile.exists() ? String(profile.data().role || "") : ""
+  const profile = await serverDb.collection("users").doc(uid).get()
+  const savedRole = profile.exists ? String(profile.data()?.role || "") : ""
   const role: RequestRole =
     savedRole === "admin" || savedRole === "staff" ? savedRole : "customer"
 
   return {
     uid,
-    email: lookupData.users?.[0]?.email || "",
+    email: decodedToken.email || "",
     role,
   }
 }
